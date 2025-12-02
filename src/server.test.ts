@@ -1,14 +1,21 @@
 import type { Server } from "bun";
-import { describe, expect, it } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, it } from "bun:test";
 import {
   ACCESS_KEY_PREFIX,
   addSecurityHeaders,
   checkRateLimit,
+  createApp,
   generateAccessKey,
   isValidEndpointId,
   rateLimitResponse,
   __test,
 } from "./server";
+
+const createTestClient = () => {
+  const app = createApp();
+  const request = (path: string, init?: RequestInit) => app.handle(new Request(`http://localhost${path}`, init));
+  return { app, request };
+};
 
 describe("checkRateLimit", () => {
   it("blocks requests that exceed the limit", () => {
@@ -38,6 +45,289 @@ describe("checkRateLimit", () => {
     const afterReset = checkRateLimit(limiter, ip, 1);
     expect(afterReset.allowed).toBe(true);
     expect(afterReset.remaining).toBe(0);
+  });
+});
+
+describe("API routes via createServer", () => {
+  let appRequest: (path: string, init?: RequestInit) => Promise<Response>;
+
+  beforeAll(() => {
+    ({ request: appRequest } = createTestClient());
+  });
+
+  beforeEach(() => {
+    __test.resetState();
+  });
+
+  it("creates a public endpoint", async () => {
+    const response = await appRequest("/api/endpoints", { method: "POST" });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.id).toMatch(/^[a-f0-9]{32}$/);
+    expect(payload.protected).toBe(false);
+    expect(payload.accessKey).toBeUndefined();
+    expect(payload.created_at).toBeDefined();
+    expect(payload.expires_at).toBeDefined();
+  });
+
+  it("creates a secure endpoint and returns an access key", async () => {
+    const response = await appRequest("/api/endpoints?secure=true", { method: "POST" });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.protected).toBe(true);
+    expect(payload.accessKey).toMatch(new RegExp(`^${ACCESS_KEY_PREFIX}`));
+  });
+
+  it("returns endpoint metadata and captured requests", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    await appRequest(`/${endpoint.id}?foo=bar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hello: "world" }),
+    });
+
+    const response = await appRequest(`/api/endpoints/${endpoint.id}`);
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.id).toBe(endpoint.id);
+    expect(Array.isArray(payload.requests)).toBe(true);
+    expect(payload.requests[0].method).toBe("POST");
+    expect(payload.requests[0].query.foo).toBe("bar");
+  });
+
+  it("rejects invalid endpoint ids before reaching the handler", async () => {
+    const response = await appRequest("/api/endpoints/not-a-valid-id");
+    expect(response.status).toBe(422);
+  });
+
+  it("returns 404 for unknown endpoints", async () => {
+    const response = await appRequest("/api/endpoints/ffffffffffffffffffffffffffffffff");
+    expect(response.status).toBe(404);
+    const payload = await response.json();
+    expect(payload.error).toContain("not found");
+  });
+
+  it("enforces access keys for protected endpoints", async () => {
+    const { endpoint, accessKey } = await __test.createEndpoint({ secure: true });
+    const missingKey = await appRequest(`/api/endpoints/${endpoint.id}`);
+    expect(missingKey.status).toBe(401);
+
+    const wrongKey = await appRequest(`/api/endpoints/${endpoint.id}?key=invalid`);
+    expect(wrongKey.status).toBe(401);
+
+    const withQueryKey = await appRequest(`/api/endpoints/${endpoint.id}?key=${accessKey}`);
+    expect(withQueryKey.status).toBe(200);
+
+    const withHeaderKey = await appRequest(`/api/endpoints/${endpoint.id}`, {
+      headers: { "x-access-key": accessKey ?? "" },
+    });
+    expect(withHeaderKey.status).toBe(200);
+  });
+
+  it("reports protection status", async () => {
+    const { endpoint: publicEndpoint } = await __test.createEndpoint();
+    const { endpoint: secureEndpoint } = await __test.createEndpoint({ secure: true });
+
+    const publicRes = await appRequest(`/api/endpoints/${publicEndpoint.id}/protected`);
+    expect(publicRes.status).toBe(200);
+    expect((await publicRes.json()).protected).toBe(false);
+
+    const secureRes = await appRequest(`/api/endpoints/${secureEndpoint.id}/protected`);
+    expect(secureRes.status).toBe(200);
+    expect((await secureRes.json()).protected).toBe(true);
+  });
+
+  it("validates params for protection checks", async () => {
+    const response = await appRequest("/api/endpoints/not-hex/protected");
+    expect(response.status).toBe(422);
+  });
+
+  it("returns 404 for unknown ids on protection check", async () => {
+    const response = await appRequest("/api/endpoints/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/protected");
+    expect(response.status).toBe(404);
+  });
+
+  it("serves the homepage when the site is built", async () => {
+    const response = await appRequest("/");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    const html = await response.text();
+    expect(html).toContain("<!DOCTYPE html>");
+  });
+
+  it("serves the inspector page and creates the endpoint if missing", async () => {
+    const endpointId = "1234567890abcdef1234567890abcdef";
+    const response = await appRequest(`/inspect/${endpointId}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    const metadata = await __test.handleEndpointMetadata(endpointId);
+    expect(metadata.status).toBe(200);
+  });
+
+  it("rejects invalid inspector endpoint ids", async () => {
+    const response = await appRequest("/inspect/not-a-valid-id");
+    expect(response.status).toBe(422);
+  });
+
+  it("rate limits endpoint creation after 10 requests per minute", async () => {
+    for (let i = 0; i < 10; i++) {
+      const res = await appRequest("/api/endpoints", { method: "POST" });
+      expect(res.status).toBe(200);
+    }
+    const blocked = await appRequest("/api/endpoints", { method: "POST" });
+    expect(blocked.status).toBe(429);
+    const payload = await blocked.json();
+    expect(payload.error).toContain("Too many requests");
+  });
+
+  it("opens an SSE stream and emits the ready event", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const response = await appRequest(`/api/endpoints/${endpoint.id}/stream`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    const reader = response.body?.getReader();
+    expect(reader).toBeTruthy();
+    const chunk = await reader?.read();
+    expect(chunk?.done).toBe(false);
+    const text = new TextDecoder().decode(chunk?.value);
+    expect(text).toContain("event: ready");
+    await reader?.cancel();
+  });
+
+  it("requires valid access keys for SSE streams on protected endpoints", async () => {
+    const { endpoint, accessKey } = await __test.createEndpoint({ secure: true });
+    const missingKey = await appRequest(`/api/endpoints/${endpoint.id}/stream`);
+    expect(missingKey.status).toBe(401);
+
+    const wrongKey = await appRequest(`/api/endpoints/${endpoint.id}/stream?key=wrong`);
+    expect(wrongKey.status).toBe(401);
+
+    const withQueryKey = await appRequest(`/api/endpoints/${endpoint.id}/stream?key=${accessKey}`);
+    expect(withQueryKey.status).toBe(200);
+    await withQueryKey.body?.cancel();
+
+    const withHeaderKey = await appRequest(`/api/endpoints/${endpoint.id}/stream`, {
+      headers: { "x-access-key": accessKey ?? "" },
+    });
+    expect(withHeaderKey.status).toBe(200);
+    await withHeaderKey.body?.cancel();
+  });
+
+  it("validates endpoint ids on the SSE route", async () => {
+    const invalid = await appRequest("/api/endpoints/not-valid/stream");
+    expect(invalid.status).toBe(422);
+
+    const missing = await appRequest("/api/endpoints/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/stream");
+    expect(missing.status).toBe(404);
+  });
+});
+
+describe("static asset routes", () => {
+  let appRequest: (path: string, init?: RequestInit) => Promise<Response>;
+
+  beforeAll(() => {
+    ({ request: appRequest } = createTestClient());
+  });
+
+  beforeEach(() => {
+    __test.resetState();
+  });
+
+  it("serves static assets from the built site", async () => {
+    const response = await appRequest("/assets/logo.svg");
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("<svg");
+  });
+
+  it("returns 404 for missing assets", async () => {
+    const response = await appRequest("/assets/not-found.svg");
+    expect(response.status).toBe(404);
+    const text = await response.text();
+    expect(text).toContain("Not found");
+  });
+
+  it("serves robots.txt and sitemap.xml when built", async () => {
+    const robots = await appRequest("/robots.txt");
+    expect(robots.status).toBe(200);
+    expect((await robots.text()).length).toBeGreaterThan(0);
+
+    const sitemap = await appRequest("/sitemap.xml");
+    expect(sitemap.status).toBe(200);
+    expect((await sitemap.text()).length).toBeGreaterThan(0);
+  });
+});
+
+describe("webhook capture routes", () => {
+  let appRequest: (path: string, init?: RequestInit) => Promise<Response>;
+
+  beforeAll(() => {
+    ({ request: appRequest } = createTestClient());
+  });
+
+  beforeEach(() => {
+    __test.resetState();
+  });
+
+  it("returns plain text for non-browser webhook captures", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const response = await appRequest(`/${endpoint.id}?foo=bar`, {
+      headers: { "X-Demo": "true" },
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("Captured");
+
+    const metadataRes = await __test.handleEndpointMetadata(endpoint.id);
+    const metadata = await metadataRes.json();
+    expect(metadata.requests[0].headers["x-demo"]).toBe("true");
+    expect(metadata.requests[0].query.foo).toBe("bar");
+  });
+
+  it("returns HTML capture page when Accept includes text/html", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const response = await appRequest(`/${endpoint.id}`, {
+      headers: { Accept: "text/html" },
+    });
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain("Request Captured");
+  });
+
+  it("captures subpaths and records the full request path", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    await appRequest(`/${endpoint.id}/webhook/callback?hello=world`, {
+      method: "POST",
+    });
+    const metadataRes = await __test.handleEndpointMetadata(endpoint.id);
+    const metadata = await metadataRes.json();
+    expect(metadata.requests[0].path).toBe(`/${endpoint.id}/webhook/callback?hello=world`);
+  });
+
+  it("truncates bodies over 512KB and marks the request as truncated", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const largeBody = "x".repeat(600 * 1024);
+    const response = await appRequest(`/${endpoint.id}`, {
+      method: "POST",
+      body: largeBody,
+    });
+    expect(response.status).toBe(200);
+
+    const metadataRes = await __test.handleEndpointMetadata(endpoint.id);
+    const metadata = await metadataRes.json();
+    expect(metadata.requests[0].truncated).toBe(true);
+    expect(metadata.requests[0].body.length).toBe(512 * 1024);
+  });
+
+  it("rate limits webhook captures after 100 requests per minute", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    for (let i = 0; i < 100; i++) {
+      const res = await appRequest(`/${endpoint.id}`);
+      expect(res.status).toBe(200);
+    }
+    const blocked = await appRequest(`/${endpoint.id}`);
+    expect(blocked.status).toBe(429);
+    const payload = await blocked.json();
+    expect(payload.error).toContain("Too many requests");
   });
 });
 

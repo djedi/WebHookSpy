@@ -513,6 +513,15 @@ function handleSse(endpointId: string): Response {
 // Export test helpers
 export const __test = {
   ensureEndpoint,
+  createEndpoint: (options?: { id?: string; secure?: boolean }) => createEndpoint(options?.id, options?.secure ?? false),
+  resetState: () => {
+    db.run("DELETE FROM requests");
+    db.run("DELETE FROM endpoints");
+    endpointCreateLimiter.clear();
+    requestLimiter.clear();
+    subscribers.clear();
+    lastCleanup = 0;
+  },
   handleEndpointMetadata,
   handleWebhookCapture: (req: Request, endpointId: string, server: { requestIP: (req: Request) => { address: string } | null }) => {
     const ipInfo = server.requestIP(req);
@@ -537,10 +546,8 @@ export const __test = {
 };
 
 // Elysia app factory
-export function createServer(options: { port?: number } = {}) {
-  const port = options.port ?? Number(process.env.PORT ?? 8147);
-
-  const app = new Elysia()
+export function createApp() {
+  return new Elysia()
     // Swagger documentation
     .use(
       swagger({
@@ -916,17 +923,15 @@ export function createServer(options: { port?: number } = {}) {
           "*": t.String(),
         }),
         detail: {
-          tags: ["webhooks"],
-          summary: "Capture a webhook request with subpath",
-          description: "Captures any HTTP request sent to this endpoint with additional path segments. The full path is recorded.",
-          responses: {
-            200: { description: "Request captured successfully" },
-            429: { description: "Rate limit exceeded" },
-          },
+          hide: true, // Hide from OpenAPI docs to avoid exactMirror warning
         },
       }
     );
+}
 
+export function createServer(options: { port?: number } = {}) {
+  const port = options.port ?? Number(process.env.PORT ?? 8147);
+  const app = createApp();
   return app.listen(port);
 }
 
