@@ -91,7 +91,7 @@ noindex: true
               </span>
               Live
             </div>
-            <span class="text-xs text-slate-500 dark:text-slate-400">Keeps last 100 requests &bull; Data clears after 7 days of inactivity</span>
+            <span class="text-xs text-slate-500 dark:text-slate-400">Keeps last 100 requests &bull; <span x-show="isProtected">Endpoint &amp; access key expire</span><span x-show="!isProtected">Data clears</span> after 7 days of inactivity</span>
           </div>
           <div>
             <p class="text-sm text-slate-500 dark:text-slate-400 mb-1">Endpoint ID</p>

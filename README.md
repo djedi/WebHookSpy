@@ -250,6 +250,8 @@ For testing webhooks with sensitive data, create a **Secure Endpoint**:
 - The inspector and SSE stream require the access key to view requests
 - Webhook capture still works without the key (requests are recorded, just not viewable without auth)
 
+> **Important**: Secure endpoints follow the same 7-day inactivity expiration as regular endpoints. If your endpoint expires, **your access key becomes invalid**—the endpoint will be auto-recreated as a new, unprotected endpoint if someone hits the URL again. To keep a secure endpoint alive, ensure it receives activity (webhook requests, inspector visits, or API calls) at least once every 7 days.
+
 ### Rate Limiting
 
 To prevent abuse, WebhookSpy enforces per-IP rate limits:
