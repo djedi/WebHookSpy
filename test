@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_NAME="WebhookSpy"
+
+WATCH=false
+REPORT=false
+CHANGED=false
+FILTER=""
+LIST_ONLY=false
+
+print_usage() {
+  cat <<'USAGE'
+Usage: ./test [options]
+
+Options:
+  --watch            Run tests in watch mode (passes --watch to bun test)
+  --report           Run with coverage, then open the HTML report when finished
+  --changed          Only run tests affected by files changed since HEAD
+  --filter <pattern> Filter tests using Bun's --filter flag
+  --list             List discovered test files without running them
+  -h, --help         Show this help
+
+Examples:
+  ./test
+  ./test --filter rate-limit
+  ./test --watch
+  ./test --report
+  ./test --changed --report
+USAGE
+}
+
+ensure_bun() {
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "❌ Bun is required but was not found in PATH." >&2
+    exit 1
+  fi
+}
+
+open_report() {
+  local report_path=""
+  if [[ -f "$ROOT_DIR/coverage/html/index.html" ]]; then
+    report_path="$ROOT_DIR/coverage/html/index.html"
+  elif [[ -f "$ROOT_DIR/coverage/lcov-report/index.html" ]]; then
+    report_path="$ROOT_DIR/coverage/lcov-report/index.html"
+  elif [[ -f "$ROOT_DIR/coverage/index.html" ]]; then
+    report_path="$ROOT_DIR/coverage/index.html"
+  fi
+
+  if [[ -z "$report_path" ]]; then
+    echo "ℹ️ Coverage generated, but no HTML report found under coverage/."
+    return
+  fi
+
+  echo "📄 Opening coverage report at $report_path"
+  if command -v open >/dev/null 2>&1; then
+    open "$report_path" >/dev/null 2>&1 &
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$report_path" >/dev/null 2>&1 &
+  elif command -v start >/dev/null 2>&1; then
+    start "" "$report_path" >/dev/null 2>&1 &
+  else
+    echo "Unable to auto-open coverage. Please open manually."
+  fi
+}
+
+list_tests() {
+  echo "📋 Available test files:"
+  if ! find "$ROOT_DIR/src" -type f \( -name '*test.[tj]s' -o -name '*test.[tj]sx' \) | sort; then
+    echo "  (none found)"
+  fi
+}
+
+get_changed_tests() {
+  if ! git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    return 1
+  fi
+
+  local diff_target="HEAD"
+  if ! git -C "$ROOT_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
+    diff_target="$(git -C "$ROOT_DIR" hash-object -t tree /dev/null)"
+  fi
+
+  git -C "$ROOT_DIR" diff --name-only --diff-filter=ACMRTUXB "$diff_target" |
+    grep -E 'src/.+\\.test\\.(ts|js|tsx)$' || true
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --watch) WATCH=true ;;
+      --report) REPORT=true ;;
+      --changed) CHANGED=true ;;
+      --filter)
+        shift || { echo "Missing argument for --filter" >&2; exit 1; }
+        FILTER="$1"
+        ;;
+      --list) LIST_ONLY=true ;;
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo "Unknown option: $1" >&2
+        print_usage
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift || true
+  done
+}
+
+main() {
+  parse_args "$@"
+
+  if $REPORT && $WATCH; then
+    echo "⚠️ Coverage reporting is not supported in watch mode. Ignoring --report."
+    REPORT=false
+  fi
+
+  if $LIST_ONLY; then
+    list_tests
+    exit 0
+  fi
+
+  ensure_bun
+
+  local cmd=("bun" "test" "--bail")
+  $WATCH && cmd+=("--watch")
+  [[ -n "$FILTER" ]] && cmd+=("--filter" "$FILTER")
+  if $REPORT; then
+    cmd+=("--coverage" "--coverage-reporter=text" "--coverage-reporter=lcov")
+  fi
+
+  local changed_files=()
+  if $CHANGED; then
+    while IFS= read -r file; do
+      changed_files+=("$file")
+    done < <(get_changed_tests)
+
+    if ((${#changed_files[@]} == 0)); then
+      echo "ℹ️ No changed test files detected; running the full suite."
+    else
+      echo "🧪 Running changed tests only:"
+      printf '  • %s\n' "${changed_files[@]}"
+      cmd+=("${changed_files[@]}")
+    fi
+  fi
+
+  echo "▶ Running ${PROJECT_NAME} tests: ${cmd[*]}"
+  if ! "${cmd[@]}"; then
+    echo "❌ Tests failed."
+    exit 1
+  fi
+
+  if $REPORT; then
+    if [[ -f "$ROOT_DIR/coverage/lcov.info" ]]; then
+      if command -v genhtml >/dev/null 2>&1; then
+        rm -rf "$ROOT_DIR/coverage/html"
+        genhtml "$ROOT_DIR/coverage/lcov.info" --output-directory "$ROOT_DIR/coverage/html" >/dev/null
+      else
+        echo "⚠️ 'genhtml' not found; install lcov to generate interactive HTML coverage."
+      fi
+    else
+      echo "⚠️ Coverage LCOV file missing; skipping HTML report generation."
+    fi
+    open_report
+  fi
+}
+
+main "$@"

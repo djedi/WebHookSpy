@@ -106,7 +106,7 @@ const securityHeaders = {
   "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
 };
 
-function checkRateLimit(
+export function checkRateLimit(
   limiter: Map<string, { count: number; resetTime: number }>,
   ip: string,
   maxRequests: number
@@ -127,7 +127,7 @@ function checkRateLimit(
   return { allowed: true, remaining: maxRequests - record.count, resetIn: record.resetTime - now };
 }
 
-function addSecurityHeaders(response: Response): Response {
+export function addSecurityHeaders(response: Response): Response {
   const newHeaders = new Headers(response.headers);
   for (const [key, value] of Object.entries(securityHeaders)) {
     newHeaders.set(key, value);
@@ -139,7 +139,7 @@ function addSecurityHeaders(response: Response): Response {
   });
 }
 
-function rateLimitResponse(resetIn: number): Response {
+export function rateLimitResponse(resetIn: number): Response {
   return new Response(JSON.stringify({ error: "Too many requests. Please slow down." }), {
     status: 429,
     headers: {
@@ -179,14 +179,14 @@ function cleanupExpired() {
   db.run("DELETE FROM endpoints WHERE expires_at <= ?", isoNow);
 }
 
-function isValidEndpointId(id: string) {
+export function isValidEndpointId(id: string) {
   return /^[a-f0-9]{32}$/i.test(id);
 }
 
 // Access key generation and verification
-const ACCESS_KEY_PREFIX = "whspy_";
+export const ACCESS_KEY_PREFIX = "whspy_";
 
-function generateAccessKey(): string {
+export function generateAccessKey(): string {
   const randomBytes = crypto.getRandomValues(new Uint8Array(24));
   const base64 = btoa(String.fromCharCode(...randomBytes))
     .replace(/\+/g, "-")
@@ -534,10 +534,21 @@ async function serveStaticPage(pagePath: string) {
   return null;
 }
 
-const server = Bun.serve({
-  port: Number(process.env.PORT ?? 8147),
-  hostname: "0.0.0.0",
-  fetch: async (req, bunServer) => {
+export const __test = {
+  ensureEndpoint,
+  handleEndpointMetadata,
+  handleWebhookCapture,
+  serveHomePage,
+  serveStaticPage,
+  serveInspectorPage,
+};
+
+export function createServer(options: { port?: number } = {}) {
+  const port = options.port ?? Number(process.env.PORT ?? 8147);
+  return Bun.serve({
+    port,
+    hostname: "0.0.0.0",
+    fetch: async (req, bunServer) => {
     cleanupExpired();
     const url = new URL(req.url);
     const pathname = url.pathname;
@@ -655,7 +666,11 @@ const server = Bun.serve({
     }
 
     return respond(new Response("Not found", { status: 404 }));
-  },
-});
+    },
+  });
+}
 
-console.log(`WebhookSpy listening on http://0.0.0.0:${server.port}`);
+if (import.meta.main) {
+  const server = createServer();
+  console.log(`WebhookSpy listening on http://0.0.0.0:${server.port}`);
+}

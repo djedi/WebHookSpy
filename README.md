@@ -340,8 +340,9 @@ Contributions are welcome whether it's bug reports, docs, or new features.
 
 1. Fork the repository and create a feature branch (`git checkout -b feature/my-idea`).
 2. Run `bun install` once, then use `bun run dev` or `./dev` for a live server while you work.
-3. Please run `bun run build` before opening a PR to ensure the 11ty site still builds.
-4. Open a pull request that describes the change, how to test it, and links to any related issues.
+3. Execute `./test` to run the Bun test suite (add `--watch`, `--changed`, or `--report` for coverage reports) and keep it green.
+4. Please run `bun run build` before opening a PR to ensure the 11ty site still builds.
+5. Open a pull request that describes the change, how to test it, and links to any related issues.
 
 Not sure where to start? Check the [issue tracker](https://github.com/djedi/WebHookSpy/issues) for `good first issue` or `help wanted` labels, or open a discussion with your proposal.
 

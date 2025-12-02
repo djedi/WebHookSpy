@@ -9,6 +9,20 @@ bun install          # Install dependencies
 bun run build        # Build 11ty static site into _site/
 bun run dev          # Start server with watch mode (auto-restarts on changes)
 bun run start        # Start server without watching
+./test               # Run unit tests via bun test (see below for flags)
+
+### Testing & Coverage
+
+```bash
+./test                 # Run the full Bun test suite once (fails fast)
+./test --watch         # Keep rerunning tests on file changes
+./test --filter rate   # Filter tests by name/description
+./test --changed       # Only run tests affected by git changes (falls back to full suite if none detected)
+./test --list          # List discovered test files without running them
+./test --report        # Run with coverage, generate lcov + interactive HTML (requires `genhtml` from lcov)
+```
+
+When using `--report`, the script runs `bun test --coverage --coverage-reporter=lcov` and, if `genhtml` is available, emits an interactive report under `coverage/html/index.html` and opens it automatically.
 ```
 
 ### Docker Development

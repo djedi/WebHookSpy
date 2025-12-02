@@ -32,6 +32,9 @@ logs/
 *.log
 npm-debug.log*
 
+# Coverage
+coverage/
+
 # Temp files
 tmp/
 .tmp/
