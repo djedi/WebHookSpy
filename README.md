@@ -13,9 +13,11 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js,
 ## Prerequisites
 
 **Option A: Docker (recommended)**
+
 - [Docker](https://docs.docker.com/get-docker/) with Docker Compose
 
 **Option B: Local Bun installation**
+
 - [Bun](https://bun.sh/) 1.1+ (includes `bun install`, `bun run`, and bun-provided TypeScript runtime).
 - macOS/Linux with SQLite available (Bun bundles SQLite so nothing extra is required).
 
@@ -187,8 +189,8 @@ volumes:
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable | Default | Description                |
+| -------- | ------- | -------------------------- |
 | `PORT`   | `8147`  | Port the server listens on |
 
 ### Build Your Own Image
@@ -231,31 +233,31 @@ data/              # SQLite database (created on demand)
 
 ### Docker dev script
 
-| Command           | Description                                      |
-| ----------------- | ------------------------------------------------ |
-| `./dev`           | Start the dev server (builds site + watches)     |
-| `./dev -d`        | Start in detached mode (background)              |
-| `./dev down`      | Stop and remove containers                       |
-| `./dev restart`   | Restart the containers                           |
-| `./dev rebuild`   | Rebuild container from scratch and start         |
-| `./dev logs`      | Show container logs                              |
-| `./dev logs -f`   | Follow container logs                            |
-| `./dev shell`     | Open a shell inside the container                |
-| `./dev status`    | Show container status and resource usage         |
-| `./dev clean`     | Remove containers, volumes, and images           |
-| `./dev --help`    | Show all available commands                      |
+| Command         | Description                                  |
+| --------------- | -------------------------------------------- |
+| `./dev`         | Start the dev server (builds site + watches) |
+| `./dev -d`      | Start in detached mode (background)          |
+| `./dev down`    | Stop and remove containers                   |
+| `./dev restart` | Restart the containers                       |
+| `./dev rebuild` | Rebuild container from scratch and start     |
+| `./dev logs`    | Show container logs                          |
+| `./dev logs -f` | Follow container logs                        |
+| `./dev shell`   | Open a shell inside the container            |
+| `./dev status`  | Show container status and resource usage     |
+| `./dev clean`   | Remove containers, volumes, and images       |
+| `./dev --help`  | Show all available commands                  |
 
 ### Build script
 
-| Command                   | Description                                      |
-| ------------------------- | ------------------------------------------------ |
-| `./build`                 | Build Docker image locally                       |
-| `./build push`            | Build and push to Docker Hub                     |
-| `./build push -t v1.0.0`  | Build and push with specific tag                 |
-| `./build release -t v1.0.0` | Tag as version + latest, then push             |
-| `./build multi -t v1.0.0` | Multi-platform build (amd64 + arm64) and push    |
-| `./build --no-cache`      | Build without cache                              |
-| `./build --dry-run`       | Show commands without executing                  |
+| Command                     | Description                                   |
+| --------------------------- | --------------------------------------------- |
+| `./build`                   | Build Docker image locally                    |
+| `./build push`              | Build and push to Docker Hub                  |
+| `./build push -t v1.0.0`    | Build and push with specific tag              |
+| `./build release -t v1.0.0` | Tag as version + latest, then push            |
+| `./build multi -t v1.0.0`   | Multi-platform build (amd64 + arm64) and push |
+| `./build --no-cache`        | Build without cache                           |
+| `./build --dry-run`         | Show commands without executing               |
 
 ### Bun scripts
 

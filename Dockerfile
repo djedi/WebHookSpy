@@ -17,7 +17,7 @@ COPY src ./src
 RUN bun run build
 
 # Production stage
-FROM oven/bun:1-slim
+FROM oven/bun:1
 
 WORKDIR /app
 
@@ -40,9 +40,9 @@ ENV NODE_ENV=production
 # Expose port
 EXPOSE 8147
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8147/ || exit 1
+# Health check using bun to make HTTP request
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD bun -e "fetch('http://localhost:8147/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Run the server
 CMD ["bun", "run", "src/server.ts"]

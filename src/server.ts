@@ -418,6 +418,7 @@ async function serveStaticPage(pagePath: string) {
 
 const server = Bun.serve({
   port: Number(process.env.PORT ?? 8147),
+  hostname: "0.0.0.0",
   fetch: async (req, bunServer) => {
     cleanupExpired();
     const url = new URL(req.url);
@@ -483,4 +484,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`WebhookSpy listening on http://localhost:${server.port}`);
+console.log(`WebhookSpy listening on http://0.0.0.0:${server.port}`);
