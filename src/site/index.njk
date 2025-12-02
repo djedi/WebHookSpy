@@ -295,11 +295,31 @@ description: Create instant webhook URLs and capture HTTP requests in real-time.
         }
       },
       async copy(value, type) {
-        await navigator.clipboard.writeText(value);
-        this.copied = type;
-        setTimeout(() => {
-          this.copied = null;
-        }, 2000);
+        const copied = window.safeCopyToClipboard ? await window.safeCopyToClipboard(value) : false;
+        if (copied) {
+          this.copied = type;
+          this.showCopyToast(this.copyMessageFor(type));
+          setTimeout(() => {
+            this.copied = null;
+          }, 2000);
+          return;
+        }
+        this.copied = null;
+        this.showCopyToast("Unable to copy text");
+      },
+      copyMessageFor(type) {
+        const messages = {
+          accessKey: "Access key copied to clipboard",
+          webhook: "Webhook URL copied",
+          inspector: "Inspector URL copied",
+        };
+        return messages[type] || "Copied to clipboard";
+      },
+      showCopyToast(message) {
+        const store = window.Alpine && typeof window.Alpine.store === "function" ? window.Alpine.store("toast") : null;
+        if (store && typeof store.show === "function") {
+          store.show(message);
+        }
       },
     };
   }

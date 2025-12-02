@@ -139,6 +139,64 @@ description: Explore WebhookSpy features including real-time request streaming, 
         </li>
       </ul>
     </article>
+
+    <!-- Feature 5: Secure Endpoints -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-400/10 dark:from-emerald-500/30 dark:to-emerald-500/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Secure Endpoints with Access Keys</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        Need to test webhooks containing sensitive data? Create a secure endpoint protected by a unique access key.
+        Only users with the key can view captured requests in the inspector. Perfect for teams testing production-like
+        webhook payloads.
+      </p>
+      <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          One-click secure endpoint creation
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Access keys hashed with industry-standard bcrypt
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Share keys with teammates via URL or manual entry
+        </li>
+      </ul>
+    </article>
+
+    <!-- Feature 6: Security Hardened -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-400/20 to-rose-400/10 dark:from-rose-500/30 dark:to-rose-500/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Security Hardened</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        WebhookSpy is built with security in mind. Rate limiting prevents abuse, security headers protect against
+        common web vulnerabilities, and XSS protection ensures captured payloads are safely displayed. We also
+        remind users not to send sensitive data to public endpoints.
+      </p>
+      <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Rate limiting (100 requests/min, 10 endpoints/min)
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          CSP, X-Frame-Options, and XSS protection headers
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Safe JSON rendering with HTML escaping
+        </li>
+      </ul>
+    </article>
   </div>
 
   <!-- Use Cases Section -->

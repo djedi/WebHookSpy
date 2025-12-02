@@ -9,6 +9,8 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js,
 - **Live streaming inspector** – Requests appear instantly via SSE with a sidebar list and detailed headers/body view.
 - **Smart retention** – Keeps the last 100 requests per endpoint. Older requests are automatically pruned.
 - **Theme aware UI** – Supports automatic light/dark detection plus a manual theme switcher.
+- **Secure endpoints** – Optionally protect endpoints with access keys for testing sensitive webhooks.
+- **Security hardened** – Rate limiting, security headers (CSP, X-Frame-Options), and XSS protection built-in.
 
 ## Prerequisites
 
@@ -57,9 +59,11 @@ The first build generates `_site/index.html` and `_site/endpoint/index.html`, wh
 
 Once the server starts, visit `http://localhost:8147` to generate endpoints. The workflow:
 
-1. Click **New endpoint** → the UI shows both the webhook URL (`/{id}`) and inspector URL (`/inspect/{id}`).
-2. Point any HTTP client/webhook provider at the webhook URL.
-3. Open the inspector URL in a browser to watch requests stream in live. Hitting the raw webhook URL in a browser counts as a GET capture.
+1. Click **Quick Endpoint** for public testing or **Secure Endpoint** for access-key protected inspection.
+2. Point any HTTP client/webhook provider at the webhook URL (`/{id}`).
+3. Open the inspector URL (`/inspect/{id}`) in a browser to watch requests stream in live.
+
+For secure endpoints, copy and save the access key shown after creation—it's only displayed once. Share the key with teammates via URL (`/inspect/{id}?key=whspy_...`) or they can enter it manually.
 
 ### Running in production mode
 
@@ -209,6 +213,43 @@ cd WebhookSpy
 # Multi-platform build (amd64 + arm64)
 ./build multi -t v1.0.0
 ```
+
+## Security
+
+### Secure Endpoints
+
+For testing webhooks with sensitive data, create a **Secure Endpoint**:
+
+- Access keys are generated server-side with a `whspy_` prefix
+- Keys are hashed (bcrypt) before storage—we never store plaintext keys
+- The inspector and SSE stream require the access key to view requests
+- Webhook capture still works without the key (requests are recorded, just not viewable without auth)
+
+### Rate Limiting
+
+To prevent abuse, WebhookSpy enforces per-IP rate limits:
+
+| Action             | Limit              |
+| ------------------ | ------------------ |
+| Endpoint creation  | 10 per minute      |
+| Webhook requests   | 100 per minute     |
+
+Exceeding limits returns HTTP 429 with a `Retry-After` header.
+
+### Security Headers
+
+All responses include security headers:
+- `Content-Security-Policy` – Restricts script/style sources
+- `X-Frame-Options: DENY` – Prevents clickjacking
+- `X-Content-Type-Options: nosniff` – Prevents MIME sniffing
+- `X-XSS-Protection: 1; mode=block` – Legacy XSS protection
+- `Referrer-Policy: strict-origin-when-cross-origin`
+
+### Best Practices
+
+- Use **Secure Endpoints** when testing webhooks with API keys, tokens, or PII
+- Public endpoints display a warning banner reminding users not to send sensitive data
+- All JSON payloads are HTML-escaped before rendering to prevent XSS
 
 ## Data & storage
 

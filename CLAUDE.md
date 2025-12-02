@@ -58,9 +58,36 @@ Frontend uses Alpine.js for reactivity and Tailwind CSS (via CDN) for styling.
 |-------|--------|-------------|
 | `/{id}` | ANY | Capture webhook request |
 | `/inspect/{id}` | GET | Serve inspector page |
-| `/api/endpoints` | POST | Create new endpoint |
+| `/api/endpoints` | POST | Create new endpoint (add `?secure=true` for protected) |
 | `/api/endpoints/{id}` | GET | Get endpoint metadata + requests |
+| `/api/endpoints/{id}/protected` | GET | Check if endpoint requires access key |
 | `/api/endpoints/{id}/stream` | GET | SSE stream for live updates |
+
+## Security Features
+
+### Secure Endpoints
+- Create protected endpoints with `POST /api/endpoints?secure=true`
+- Access keys generated server-side with `whspy_` prefix (24 random bytes, base64url encoded)
+- Keys hashed using `Bun.password.hash()` (bcrypt) before storage
+- Inspector and SSE require valid access key via `?key=` param or `x-access-key` header
+- Keys can be shared via URL (`/inspect/{id}?key=whspy_...`) or entered manually
+
+### Rate Limiting
+- Endpoint creation: 10 per IP per minute
+- Webhook requests: 100 per IP per minute
+- Returns 429 with `Retry-After` header when exceeded
+
+### Security Headers
+All responses include:
+- `Content-Security-Policy` (script-src, style-src, etc.)
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `X-XSS-Protection: 1; mode=block`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+
+### XSS Protection
+- JSON syntax highlighter escapes HTML before rendering
+- Warning banner on public endpoints about sensitive data
 
 ## Key Implementation Details
 
@@ -68,3 +95,4 @@ Frontend uses Alpine.js for reactivity and Tailwind CSS (via CDN) for styling.
 - SSE subscribers stored in memory Map; broadcast on new request capture
 - Expired endpoint cleanup runs on each request (throttled to once per minute)
 - Request IP captured via `server.requestIP(req)`
+- Rate limit maps cleaned up every 60 seconds

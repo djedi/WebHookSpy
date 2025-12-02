@@ -237,6 +237,40 @@
         };
       })();
     </script>
+    <script>
+      window.safeCopyToClipboard = async function (value) {
+        if (navigator.clipboard?.writeText) {
+          try {
+            await navigator.clipboard.writeText(value);
+            return true;
+          } catch (error) {
+            /* fall back to legacy path */
+          }
+        }
+        try {
+          const textarea = document.createElement("textarea");
+          textarea.value = value;
+          textarea.setAttribute("readonly", "");
+          textarea.style.position = "absolute";
+          textarea.style.left = "-9999px";
+          textarea.style.opacity = "0";
+          document.body.appendChild(textarea);
+          const selection = document.getSelection();
+          const selectedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+          textarea.select();
+          textarea.setSelectionRange(0, textarea.value.length);
+          const successful = document.execCommand("copy");
+          document.body.removeChild(textarea);
+          if (selectedRange && selection) {
+            selection.removeAllRanges();
+            selection.addRange(selectedRange);
+          }
+          return successful;
+        } catch (error) {
+          return false;
+        }
+      };
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   </head>
   <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans antialiased transition-colors overflow-x-hidden">
@@ -246,6 +280,46 @@
       <div class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-sky-400/20 dark:bg-sky-500/10 rounded-full blur-3xl animate-pulse-slow" style="animation-delay: 1s"></div>
       <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-violet-400/10 dark:bg-violet-500/5 rounded-full blur-3xl animate-pulse-slow" style="animation-delay: 2s"></div>
       <div class="absolute inset-0 bg-grid"></div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div
+      x-data
+      class="fixed top-4 inset-x-0 px-4 sm:px-6 flex justify-center sm:justify-end pointer-events-none z-50"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
+      <div
+        x-cloak
+        x-show="$store.toast.visible"
+        x-transition:enter="transform ease-out duration-200"
+        x-transition:enter-start="translate-y-2 opacity-0 scale-95"
+        x-transition:enter-end="translate-y-0 opacity-100 scale-100"
+        x-transition:leave="transform ease-in duration-150"
+        x-transition:leave-start="opacity-100 scale-100"
+        x-transition:leave-end="opacity-0 scale-95"
+        class="pointer-events-auto w-full sm:max-w-sm rounded-2xl glass bg-white/90 dark:bg-slate-900/90 border border-slate-200/60 dark:border-slate-800/70 shadow-xl px-4 py-3 flex items-start gap-3 text-sm text-slate-700 dark:text-slate-200"
+        role="status"
+      >
+        <div class="flex items-center justify-center w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16.5v.75m-9-5.25C3 8.25 6.75 4.5 12 4.5s9 3.75 9 7.5-3.75 7.5-9 7.5c-.315 0-.626-.012-.933-.035m-8.067-7.465l1.5 1.5m0 0l1.5-1.5m-1.5 1.5v3" />
+          </svg>
+        </div>
+        <div class="flex-1">
+          <p class="font-semibold text-slate-900 dark:text-white" x-text="$store.toast.message"></p>
+        </div>
+        <button
+          type="button"
+          class="flex-shrink-0 rounded-lg p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          @click="$store.toast.hide()"
+          aria-label="Dismiss notification"
+        >
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <div class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -319,6 +393,33 @@
         <p class="text-center text-xs text-slate-400 dark:text-slate-500">Free webhook testing tool for developers. No signup required.</p>
       </footer>
     </div>
+    <script>
+      document.addEventListener("alpine:init", () => {
+        Alpine.store("toast", {
+          message: "",
+          visible: false,
+          timeoutId: null,
+          show(message) {
+            this.message = message;
+            this.visible = true;
+            if (this.timeoutId) {
+              clearTimeout(this.timeoutId);
+            }
+            this.timeoutId = setTimeout(() => {
+              this.visible = false;
+              this.timeoutId = null;
+            }, 2400);
+          },
+          hide() {
+            this.visible = false;
+            if (this.timeoutId) {
+              clearTimeout(this.timeoutId);
+              this.timeoutId = null;
+            }
+          },
+        });
+      });
+    </script>
     <script>
       document.addEventListener("alpine:init", () => {
         Alpine.data("themeSwitcher", () => ({

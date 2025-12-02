@@ -580,11 +580,22 @@ noindex: true
         this.selectedRequest = request;
       },
       async copyUrl(url) {
-        await navigator.clipboard.writeText(url);
-        this.urlCopied = true;
-        setTimeout(() => {
-          this.urlCopied = false;
-        }, 2000);
+        const copied = window.safeCopyToClipboard ? await window.safeCopyToClipboard(url) : false;
+        if (copied) {
+          this.urlCopied = true;
+          this.showCopyToast("Endpoint URL copied");
+          setTimeout(() => {
+            this.urlCopied = false;
+          }, 2000);
+          return;
+        }
+        this.showCopyToast("Unable to copy text");
+      },
+      showCopyToast(message) {
+        const store = window.Alpine && typeof window.Alpine.store === "function" ? window.Alpine.store("toast") : null;
+        if (store && typeof store.show === "function") {
+          store.show(message);
+        }
       },
     };
   }
