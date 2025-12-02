@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ title | default("WebhookSpy - Free Webhook Testing & Debugging Tool") }}</title>
     <meta name="description" content="{{ description | default('WebhookSpy is a free, open-source webhook testing tool. Create instant webhook URLs, capture HTTP requests in real-time, and inspect headers, payloads, and query parameters. Perfect for API development and debugging.') }}" />
-    <meta name="keywords" content="webhook tester, webhook debugger, HTTP request inspector, API testing, webhook URL generator, request capture, real-time webhook, free webhook tool, open source webhook" />
+    <meta name="keywords" content="webhook tester, webhook debugger, HTTP request inspector, API testing, webhook URL generator, request capture, real-time webhook, free webhook tool, open source webhook, webhook API, OpenAPI documentation, REST API, webhook automation" />
     <meta name="author" content="WebhookSpy" />
     <link rel="icon" href="/assets/favicon.svg" />
     <link rel="canonical" href="https://webhookspy.com{{ page.url }}" />
@@ -48,6 +48,8 @@
         "Real-time request streaming via Server-Sent Events",
         "Full HTTP request inspection (headers, body, query parameters)",
         "Support for all HTTP methods",
+        "REST API with OpenAPI 3.0 documentation",
+        "Interactive API explorer at /docs",
         "7-day data retention",
         "No registration required"
       ],
@@ -95,6 +97,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Each endpoint stores the last 100 requests. When new requests come in after reaching the limit, the oldest requests are automatically removed."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does WebhookSpy have an API?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, WebhookSpy provides a full REST API for programmatic access. You can create endpoints, retrieve captured requests, and subscribe to real-time updates via SSE. Interactive API documentation with OpenAPI 3.0 specification is available at /docs."
           }
         }
       ]
@@ -398,8 +408,9 @@
         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-slate-500 dark:text-slate-400">
           <div class="flex items-center gap-2">
             <span class="font-medium text-slate-700 dark:text-slate-300">Built with</span>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 flex-wrap justify-center">
               <span class="px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-medium">Bun</span>
+              <span class="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium">Elysia</span>
               <span class="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-xs font-medium">SQLite</span>
               <span class="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-medium">11ty</span>
               <span class="px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs font-medium">Alpine</span>

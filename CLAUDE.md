@@ -47,10 +47,11 @@ The server runs on port 8147 by default (configurable via PORT env var).
 WebhookSpy is a webhook testing tool with two main components:
 
 ### Backend (`src/server.ts`)
-A Bun HTTP server that handles:
+An Elysia server (running on Bun) that handles:
 - **Webhook capture**: Any request to `/{32-char-hex-id}` is captured and stored
 - **SSE streaming**: Real-time updates via `/api/endpoints/{id}/stream`
 - **REST API**: `POST /api/endpoints` (create), `GET /api/endpoints/{id}` (metadata)
+- **OpenAPI docs**: Auto-generated Swagger/Scalar documentation at `/docs`
 - **Static serving**: Serves 11ty-built files from `_site/`
 
 SQLite database (`data/webhookspy.sqlite`) stores endpoints and requests. Key constraints:
@@ -76,6 +77,8 @@ Frontend uses Alpine.js for reactivity and Tailwind CSS (via CDN) for styling.
 | `/api/endpoints/{id}` | GET | Get endpoint metadata + requests |
 | `/api/endpoints/{id}/protected` | GET | Check if endpoint requires access key |
 | `/api/endpoints/{id}/stream` | GET | SSE stream for live updates |
+| `/docs` | GET | Interactive OpenAPI documentation (Scalar UI) |
+| `/docs/json` | GET | OpenAPI 3.0 JSON specification |
 
 ## Security Features
 

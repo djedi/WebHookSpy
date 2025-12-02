@@ -4,13 +4,14 @@
   <img src="webhookspy-logo.png" alt="WebhookSpy logo" width="320" />
 </p>
 
-WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js, Tailwind CSS, and 11ty. It gives you permanent HTTP endpoints that you can use forever for testing, stream payloads over Server-Sent Events (SSE), and present the captures in a modern, polished UI.
+WebhookSpy is a lightweight webhook inspector powered by Bun, Elysia, SQLite, Alpine.js, Tailwind CSS, and 11ty. It gives you permanent HTTP endpoints that you can use forever for testing, stream payloads over Server-Sent Events (SSE), and present the captures in a modern, polished UI.
 
 ## Features
 
 - **One-click endpoints** – Generate unique webhook URLs and matching inspector links directly from the homepage.
 - **Permanent URLs** – Your webhook URL never expires. Data clears after 7 days of inactivity, but the same URL keeps working automatically.
 - **Live streaming inspector** – Requests appear instantly via SSE with a sidebar list and detailed headers/body view.
+- **REST API with OpenAPI docs** – Full programmatic access via REST API with interactive documentation at `/docs`.
 - **Smart retention** – Keeps the last 100 requests per endpoint. Older requests are automatically pruned.
 - **Theme aware UI** – Supports automatic light/dark detection plus a manual theme switcher.
 - **Secure endpoints** – Optionally protect endpoints with access keys for testing sensitive webhooks.
@@ -20,8 +21,9 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js,
 
 ```
 ┌────────────┐    captures/streams     ┌───────────────────────────┐
-│ HTTP client│ ──────────────────────▶ │ Bun server (src/server.ts)│
+│ HTTP client│ ──────────────────────▶ │ Elysia server (server.ts) │
 └────────────┘                         │  • REST + webhook catcher │
+                                       │  • OpenAPI docs at /docs  │
                                        │  • SQLite persistence     │
                                        └────────────┬──────────────┘
                                                     │ serves
@@ -33,7 +35,7 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js,
                                        └───────────────────────────┘
 ```
 
-The Bun server exposes `/api` endpoints, captures any HTTP request to `/{endpointId}`, and uses SQLite for storage and retention rules. The frontend is generated with 11ty/Nunjucks templates and Alpine.js for interactivity, compiled into `_site/` and served by the same Bun process.
+The Elysia server (running on Bun) exposes `/api` endpoints with auto-generated OpenAPI documentation at `/docs`, captures any HTTP request to `/{endpointId}`, and uses SQLite for storage and retention rules. The frontend is generated with 11ty/Nunjucks templates and Alpine.js for interactivity, compiled into `_site/` and served by the same process.
 
 ## Prerequisites
 
