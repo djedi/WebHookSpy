@@ -116,7 +116,7 @@ Then run:
 docker compose up -d
 ```
 
-### With Reverse Proxy (Traefik example)
+### With Reverse Proxy (Caddy example)
 
 ```yaml
 services:
@@ -126,15 +126,38 @@ services:
     volumes:
       - webhookspy-data:/app/data
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.webhookspy.rule=Host(`webhooks.yourdomain.com`)"
-      - "traefik.http.routers.webhookspy.entrypoints=websecure"
-      - "traefik.http.routers.webhookspy.tls.certresolver=letsencrypt"
-      - "traefik.http.services.webhookspy.loadbalancer.server.port=8147"
+    networks:
+      - caddy
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    networks:
+      - caddy
+
+networks:
+  caddy:
 
 volumes:
   webhookspy-data:
+  caddy-data:
+  caddy-config:
+```
+
+Create a `Caddyfile`:
+
+```
+webhooks.yourdomain.com {
+    reverse_proxy webhookspy:8147
+}
 ```
 
 ### Portainer Deployment
