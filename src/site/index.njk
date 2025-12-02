@@ -29,34 +29,57 @@ description: Create instant webhook URLs and capture HTTP requests in real-time.
   <div class="relative">
     <div class="absolute inset-0 bg-gradient-to-r from-brand/20 via-sky-500/20 to-violet-500/20 rounded-3xl blur-2xl opacity-50"></div>
     <div class="relative glass bg-white/80 dark:bg-slate-900/80 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 sm:p-10 shadow-xl shadow-slate-200/30 dark:shadow-slate-950/50">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-        <div class="space-y-2">
+      <div class="space-y-6">
+        <div class="space-y-2 text-center lg:text-left">
           <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Ready to get started?</h2>
-          <p class="text-slate-600 dark:text-slate-400">Generate your unique webhook URL in one click.</p>
+          <p class="text-slate-600 dark:text-slate-400">Choose an endpoint type based on your needs.</p>
         </div>
-        <button
-          class="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-brand to-brand-dark text-white font-semibold text-lg shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 transition-all duration-200"
-          @click="createEndpoint"
-          :disabled="loading"
-        >
-          <template x-if="!loading">
-            <span class="flex items-center gap-3">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        <div class="grid gap-4 sm:grid-cols-2">
+          <!-- Quick Endpoint Button -->
+          <button
+            class="group relative flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-brand hover:shadow-lg hover:shadow-brand/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            @click="createEndpoint(false)"
+            :disabled="loading"
+          >
+            <div class="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center group-hover:bg-brand/10 group-hover:dark:bg-brand/20 transition-colors">
+              <svg class="w-6 h-6 text-slate-600 dark:text-slate-300 group-hover:text-brand transition-colors" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
               </svg>
-              New Endpoint
-            </span>
-          </template>
-          <template x-if="loading">
-            <span class="flex items-center gap-3">
-              <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </div>
+            <div class="text-center">
+              <p class="font-semibold text-slate-900 dark:text-white">Quick Endpoint</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Public, instant access<br>Great for quick tests</p>
+            </div>
+          </button>
+
+          <!-- Secure Endpoint Button -->
+          <button
+            class="group relative flex flex-col items-center gap-3 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-violet-500 hover:shadow-lg hover:shadow-violet-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            @click="createEndpoint(true)"
+            :disabled="loading"
+          >
+            <div class="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center group-hover:bg-violet-500/10 group-hover:dark:bg-violet-500/20 transition-colors">
+              <svg class="w-6 h-6 text-slate-600 dark:text-slate-300 group-hover:text-violet-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
               </svg>
-              Generating...
-            </span>
-          </template>
-        </button>
+            </div>
+            <div class="text-center">
+              <p class="font-semibold text-slate-900 dark:text-white">Secure Endpoint</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Access key protected<br>For sensitive webhooks</p>
+            </div>
+          </button>
+        </div>
+
+        <!-- Loading State -->
+        <template x-if="loading">
+          <div class="flex items-center justify-center gap-3 py-4 text-slate-500 dark:text-slate-400">
+            <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Creating endpoint...</span>
+          </div>
+        </template>
       </div>
 
       <!-- Success State -->
@@ -69,10 +92,46 @@ description: Create instant webhook URLs and capture HTTP requests in real-time.
               </svg>
             </div>
             <div>
-              <p class="font-semibold">Endpoint created successfully!</p>
+              <p class="font-semibold" x-text="endpoint.protected ? 'Secure endpoint created!' : 'Endpoint created successfully!'"></p>
               <p class="text-sm text-slate-500 dark:text-slate-400">Keeps last 100 requests. Data clears after 7 days of inactivity.</p>
             </div>
           </div>
+
+          <!-- Access Key (only for secure endpoints) -->
+          <template x-if="endpoint.accessKey">
+            <div class="rounded-2xl border-2 border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 p-5 space-y-3">
+              <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/50 flex items-center justify-center">
+                  <svg class="w-4 h-4 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
+                  </svg>
+                </div>
+                <span class="font-semibold text-violet-700 dark:text-violet-300">Access Key</span>
+                <button
+                  class="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-violet-200 dark:bg-violet-800 hover:bg-violet-600 hover:text-white transition-colors"
+                  @click="copy(endpoint.accessKey, 'accessKey')"
+                  x-text="copied === 'accessKey' ? 'Copied!' : 'Copy'"
+                ></button>
+              </div>
+              <code class="block font-mono text-sm break-all text-violet-800 dark:text-violet-200 bg-white dark:bg-slate-900 rounded-xl px-4 py-3 border border-violet-200 dark:border-violet-700" x-text="endpoint.accessKey"></code>
+              <div class="flex items-start gap-2 text-xs text-violet-700 dark:text-violet-300">
+                <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <p><strong>Save this key now!</strong> It won't be shown again. You'll need it to view captured requests.</p>
+              </div>
+            </div>
+          </template>
+
+          <!-- Security Warning (only for public endpoints) -->
+          <template x-if="!endpoint.protected">
+            <div class="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs">
+              <svg class="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+              <p>For testing only. Do not send production webhooks with sensitive data (API keys, passwords, PII). Anyone with the URL can view captured requests.</p>
+            </div>
+          </template>
 
           <div class="grid gap-4 lg:grid-cols-2">
             <!-- Webhook URL -->
@@ -210,20 +269,24 @@ description: Create instant webhook URLs and capture HTTP requests in real-time.
       loading: false,
       error: "",
       copied: null,
-      async createEndpoint() {
+      async createEndpoint(secure = false) {
         this.loading = true;
         this.error = "";
         this.endpoint = null;
         try {
-          const response = await fetch("/api/endpoints", { method: "POST" });
+          const url = secure ? "/api/endpoints?secure=true" : "/api/endpoints";
+          const response = await fetch(url, { method: "POST" });
           if (!response.ok) {
-            throw new Error("Unable to create endpoint");
+            const data = await response.json().catch(() => ({}));
+            throw new Error(data.error || "Unable to create endpoint");
           }
           const payload = await response.json();
           this.endpoint = {
             id: payload.id,
             webhookUrl: `${location.origin}/${payload.id}`,
             inspectorUrl: `${location.origin}/inspect/${payload.id}`,
+            protected: payload.protected,
+            accessKey: payload.accessKey, // Only present for secure endpoints
           };
         } catch (error) {
           this.error = error.message || "Unknown error";

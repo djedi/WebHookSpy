@@ -10,7 +10,74 @@ noindex: true
   x-data="endpointViewer()"
   x-init="init()"
 >
-  <!-- Header Card -->
+  <!-- Access Key Prompt (for protected endpoints) -->
+  <template x-if="needsAuth">
+    <div class="relative">
+      <div class="absolute inset-0 bg-gradient-to-r from-violet-500/20 via-purple-500/20 to-violet-500/20 rounded-3xl blur-2xl opacity-50"></div>
+      <div class="relative glass bg-white/80 dark:bg-slate-900/80 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 sm:p-12 shadow-xl">
+        <div class="max-w-md mx-auto text-center space-y-6">
+          <div class="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center mx-auto">
+            <svg class="w-8 h-8 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-2xl font-bold text-slate-900 dark:text-white">Protected Endpoint</h2>
+            <p class="text-slate-600 dark:text-slate-400 mt-2">This endpoint requires an access key to view captured requests.</p>
+          </div>
+          <div class="space-y-3">
+            <input
+              type="text"
+              x-model="accessKeyInput"
+              @keyup.enter="unlockWithKey"
+              placeholder="Enter access key (whspy_...)"
+              class="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent font-mono text-sm"
+            >
+            <button
+              @click="unlockWithKey"
+              :disabled="loading || !accessKeyInput.trim()"
+              class="w-full px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold transition-colors"
+            >
+              <span x-show="!loading">Unlock Endpoint</span>
+              <span x-show="loading" class="flex items-center justify-center gap-2">
+                <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Verifying...
+              </span>
+            </button>
+          </div>
+          <template x-if="error">
+            <p class="text-sm text-rose-600 dark:text-rose-400" x-text="error"></p>
+          </template>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Webhook capture is still active. Requests are being recorded.</p>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Security Warning Banner (only for public endpoints) -->
+  <template x-if="!needsAuth && !isProtected">
+    <div class="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200" x-data="{ dismissed: localStorage.getItem('security-warning-dismissed') === 'true' }" x-show="!dismissed">
+      <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+      </svg>
+      <div class="flex-1">
+        <p class="font-medium text-sm">Security Notice</p>
+        <p class="text-xs mt-1 text-amber-700 dark:text-amber-300">Do not send production webhooks containing API keys, passwords, or sensitive data. All captured requests are stored unencrypted and accessible to anyone with the endpoint URL.</p>
+      </div>
+      <button @click="dismissed = true; localStorage.setItem('security-warning-dismissed', 'true')" class="flex-shrink-0 p-1 rounded-lg hover:bg-amber-200 dark:hover:bg-amber-800 transition-colors">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </template>
+
+  <!-- Header Card (hidden when auth needed) -->
+  <template x-if="!needsAuth">
+  <div class="space-y-6">
   <div class="relative">
     <div class="absolute inset-0 bg-gradient-to-r from-brand/10 via-sky-500/10 to-violet-500/10 rounded-3xl blur-xl opacity-50"></div>
     <div class="relative glass bg-white/80 dark:bg-slate-900/80 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-6 sm:p-8 shadow-lg">
@@ -324,6 +391,8 @@ noindex: true
       </template>
     </section>
   </div>
+  </div>
+  </template>
 </section>
 
 <script>
@@ -334,6 +403,10 @@ noindex: true
   function endpointViewer() {
     const segments = window.location.pathname.split("/").filter(Boolean);
     const endpointId = segments[segments.length - 1] || "";
+    // Check for access key in URL or localStorage
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlKey = urlParams.get('key');
+    const storedKey = localStorage.getItem(`webhookspy-key-${endpointId}`);
     return {
       endpointId,
       endpointUrl: `${location.origin}/${endpointId}`,
@@ -343,18 +416,77 @@ noindex: true
       error: "",
       stream: null,
       urlCopied: false,
+      isProtected: false,
+      needsAuth: false,
+      accessKeyInput: "",
+      accessKey: urlKey || storedKey || "",
       async init() {
         if (!this.endpointId) {
           this.error = "Missing endpoint id.";
           this.loading = false;
           return;
         }
+        // First check if endpoint is protected
+        await this.checkProtected();
+        if (this.needsAuth) {
+          this.loading = false;
+          return;
+        }
         await this.loadInitial();
         this.subscribe();
       },
+      async checkProtected() {
+        try {
+          const response = await fetch(`/api/endpoints/${this.endpointId}/protected`);
+          if (!response.ok) {
+            throw new Error("Endpoint not found or expired.");
+          }
+          const data = await response.json();
+          this.isProtected = data.protected;
+          if (this.isProtected && !this.accessKey) {
+            this.needsAuth = true;
+          } else if (this.isProtected && this.accessKey) {
+            // Verify the key works
+            const testResponse = await fetch(`/api/endpoints/${this.endpointId}?key=${encodeURIComponent(this.accessKey)}`);
+            if (!testResponse.ok) {
+              this.accessKey = "";
+              localStorage.removeItem(`webhookspy-key-${this.endpointId}`);
+              this.needsAuth = true;
+            } else {
+              // Store valid key and clean URL
+              localStorage.setItem(`webhookspy-key-${this.endpointId}`, this.accessKey);
+              if (urlKey) {
+                window.history.replaceState({}, '', window.location.pathname);
+              }
+            }
+          }
+        } catch (error) {
+          this.error = error.message || "Unable to check endpoint.";
+        }
+      },
+      async unlockWithKey() {
+        if (!this.accessKeyInput.trim()) return;
+        this.loading = true;
+        this.error = "";
+        try {
+          const response = await fetch(`/api/endpoints/${this.endpointId}?key=${encodeURIComponent(this.accessKeyInput)}`);
+          if (!response.ok) {
+            throw new Error("Invalid access key");
+          }
+          this.accessKey = this.accessKeyInput;
+          localStorage.setItem(`webhookspy-key-${this.endpointId}`, this.accessKey);
+          this.needsAuth = false;
+          await this.loadInitial();
+          this.subscribe();
+        } catch (error) {
+          this.error = error.message || "Invalid access key";
+          this.loading = false;
+        }
+      },
       async loadInitial() {
         try {
-          const response = await fetch(`/api/endpoints/${this.endpointId}`);
+          const keyParam = this.accessKey ? `?key=${encodeURIComponent(this.accessKey)}` : '';
+          const response = await fetch(`/api/endpoints/${this.endpointId}${keyParam}`);
           if (!response.ok) {
             throw new Error("Endpoint not found or expired.");
           }
@@ -369,7 +501,8 @@ noindex: true
       },
       subscribe() {
         if (this.stream) this.stream.close();
-        this.stream = new EventSource(`/api/endpoints/${this.endpointId}/stream`);
+        const keyParam = this.accessKey ? `?key=${encodeURIComponent(this.accessKey)}` : '';
+        this.stream = new EventSource(`/api/endpoints/${this.endpointId}/stream${keyParam}`);
         this.stream.onmessage = (event) => {
           const payload = JSON.parse(event.data);
           if (payload.type === "request") {
@@ -418,7 +551,9 @@ noindex: true
         }
       },
       syntaxHighlight(json) {
-        return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+        // First escape the entire JSON string to prevent XSS
+        const escaped = this.escapeHtml(json);
+        return escaped.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
           let cls = 'text-amber-600 dark:text-amber-400'; // number
           if (/^"/.test(match)) {
             if (/:$/.test(match)) {

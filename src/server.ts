@@ -8,6 +8,7 @@ type EndpointRow = {
   id: string;
   created_at: string;
   expires_at: string;
+  password_hash: string | null;
 };
 
 type RequestRecord = {
@@ -53,9 +54,16 @@ db.run(
   `CREATE TABLE IF NOT EXISTS endpoints (
     id TEXT PRIMARY KEY,
     created_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL
+    expires_at TEXT NOT NULL,
+    password_hash TEXT
   );`,
 );
+// Migration: add password_hash column if it doesn't exist
+try {
+  db.run("ALTER TABLE endpoints ADD COLUMN password_hash TEXT");
+} catch {
+  // Column already exists
+}
 db.run(
   `CREATE TABLE IF NOT EXISTS requests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +85,80 @@ const EXPIRATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days of inactivity
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_REQUESTS_PER_ENDPOINT = 100;
 const encoder = new TextEncoder();
+
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_ENDPOINT_CREATES = 10; // max endpoint creations per IP per minute
+const RATE_LIMIT_MAX_REQUESTS = 100; // max webhook requests per IP per minute
+
+// Rate limiting stores (IP -> { count, resetTime })
+const endpointCreateLimiter = new Map<string, { count: number; resetTime: number }>();
+const requestLimiter = new Map<string, { count: number; resetTime: number }>();
+
+// Security headers
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
+  // Note: 'unsafe-eval' required for Alpine.js, 'unsafe-inline' required for Tailwind CDN
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
+};
+
+function checkRateLimit(
+  limiter: Map<string, { count: number; resetTime: number }>,
+  ip: string,
+  maxRequests: number
+): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const record = limiter.get(ip);
+
+  if (!record || now > record.resetTime) {
+    limiter.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true, remaining: maxRequests - 1, resetIn: RATE_LIMIT_WINDOW_MS };
+  }
+
+  if (record.count >= maxRequests) {
+    return { allowed: false, remaining: 0, resetIn: record.resetTime - now };
+  }
+
+  record.count++;
+  return { allowed: true, remaining: maxRequests - record.count, resetIn: record.resetTime - now };
+}
+
+function addSecurityHeaders(response: Response): Response {
+  const newHeaders = new Headers(response.headers);
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    newHeaders.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: newHeaders,
+  });
+}
+
+function rateLimitResponse(resetIn: number): Response {
+  return new Response(JSON.stringify({ error: "Too many requests. Please slow down." }), {
+    status: 429,
+    headers: {
+      "Content-Type": "application/json",
+      "Retry-After": String(Math.ceil(resetIn / 1000)),
+    },
+  });
+}
+
+// Clean up old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of endpointCreateLimiter) {
+    if (now > record.resetTime) endpointCreateLimiter.delete(ip);
+  }
+  for (const [ip, record] of requestLimiter) {
+    if (now > record.resetTime) requestLimiter.delete(ip);
+  }
+}, 60_000);
 
 type Subscriber = {
   send: (payload: string) => void;
@@ -101,6 +183,30 @@ function isValidEndpointId(id: string) {
   return /^[a-f0-9]{32}$/i.test(id);
 }
 
+// Access key generation and verification
+const ACCESS_KEY_PREFIX = "whspy_";
+
+function generateAccessKey(): string {
+  const randomBytes = crypto.getRandomValues(new Uint8Array(24));
+  const base64 = btoa(String.fromCharCode(...randomBytes))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "");
+  return ACCESS_KEY_PREFIX + base64;
+}
+
+async function hashAccessKey(key: string): Promise<string> {
+  return await Bun.password.hash(key);
+}
+
+async function verifyAccessKey(key: string, hash: string): Promise<boolean> {
+  return await Bun.password.verify(key, hash);
+}
+
+function isEndpointProtected(endpoint: EndpointRow): boolean {
+  return endpoint.password_hash !== null;
+}
+
 function generateEndpointId() {
   return crypto.randomUUID().replace(/-/g, "");
 }
@@ -110,23 +216,35 @@ function getEndpoint(id: string): EndpointRow | undefined {
   return stmt.get(id) as EndpointRow | undefined;
 }
 
-function createEndpoint(id = generateEndpointId()) {
+async function createEndpoint(id = generateEndpointId(), secure = false): Promise<{ endpoint: EndpointRow; accessKey?: string }> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + EXPIRATION_MS);
+
+  let passwordHash: string | null = null;
+  let accessKey: string | undefined;
+
+  if (secure) {
+    accessKey = generateAccessKey();
+    passwordHash = await hashAccessKey(accessKey);
+  }
+
   db.run(
-    "INSERT INTO endpoints (id, created_at, expires_at) VALUES (?, ?, ?)",
+    "INSERT INTO endpoints (id, created_at, expires_at, password_hash) VALUES (?, ?, ?, ?)",
     id,
     now.toISOString(),
     expiresAt.toISOString(),
+    passwordHash,
   );
-  return getEndpoint(id)!;
+
+  return { endpoint: getEndpoint(id)!, accessKey };
 }
 
-function ensureEndpoint(id?: string) {
+async function ensureEndpoint(id?: string): Promise<EndpointRow> {
   const endpointId = id ?? generateEndpointId();
   let endpoint = getEndpoint(endpointId);
   if (!endpoint) {
-    endpoint = createEndpoint(endpointId);
+    const result = await createEndpoint(endpointId, false);
+    endpoint = result.endpoint;
   }
   return endpoint;
 }
@@ -208,7 +326,7 @@ async function serveStaticFile(relativePath: string) {
 }
 
 async function handleWebhookCapture(req: Request, endpointId: string, server: Server) {
-  const endpoint = ensureEndpoint(endpointId);
+  const endpoint = await ensureEndpoint(endpointId);
   const url = new URL(req.url);
   const query: Record<string, string> = {};
   url.searchParams.forEach((value, key) => {
@@ -373,7 +491,7 @@ function handleSse(endpointId: string) {
 }
 
 async function serveInspectorPage(endpointId: string) {
-  ensureEndpoint(endpointId);
+  await ensureEndpoint(endpointId);
   const file = Bun.file(endpointHtmlPath);
   if (!(await file.exists())) {
     return new Response("Inspector unavailable. Run `bun run build` first.", { status: 500 });
@@ -424,63 +542,119 @@ const server = Bun.serve({
     const url = new URL(req.url);
     const pathname = url.pathname;
 
+    // Get client IP for rate limiting
+    const ipInfo = bunServer.requestIP(req);
+    const clientIp = ipInfo?.address ?? "unknown";
+
+    // Helper to return response with security headers
+    const respond = (response: Response) => addSecurityHeaders(response);
+
     if (pathname === "/") {
-      return serveHomePage();
+      return respond(await serveHomePage());
     }
 
     // Serve static assets
     if (pathname.startsWith("/assets/") || pathname === "/favicon.ico") {
-      return serveStaticFile(pathname.slice(1));
+      return respond(await serveStaticFile(pathname.slice(1)));
     }
 
     // Serve robots.txt and sitemap.xml
     if (pathname === "/robots.txt" || pathname === "/sitemap.xml") {
-      return serveStaticFile(pathname.slice(1));
+      return respond(await serveStaticFile(pathname.slice(1)));
     }
 
     // Serve inspector pages for valid endpoint IDs
     const inspectorMatch = pathname.match(/^\/inspect\/([a-f0-9]{32})$/i);
     if (inspectorMatch && req.method === "GET") {
-      return serveInspectorPage(inspectorMatch[1]);
+      return respond(await serveInspectorPage(inspectorMatch[1]));
     }
 
-    // API: Create endpoint
+    // API: Create endpoint (with rate limiting)
     if (pathname === "/api/endpoints" && req.method === "POST") {
-      const endpoint = ensureEndpoint();
-      return Response.json(endpoint);
+      const rateCheck = checkRateLimit(endpointCreateLimiter, clientIp, RATE_LIMIT_MAX_ENDPOINT_CREATES);
+      if (!rateCheck.allowed) {
+        return respond(rateLimitResponse(rateCheck.resetIn));
+      }
+      const secure = url.searchParams.get("secure") === "true";
+      const { endpoint, accessKey } = await createEndpoint(undefined, secure);
+      return respond(Response.json({
+        id: endpoint.id,
+        created_at: endpoint.created_at,
+        expires_at: endpoint.expires_at,
+        protected: isEndpointProtected(endpoint),
+        accessKey, // Only present for secure endpoints, shown once
+      }));
     }
 
     // API: Get endpoint metadata
     const endpointMatch = pathname.match(/^\/api\/endpoints\/([a-f0-9]{32})$/i);
     if (endpointMatch && req.method === "GET") {
-      return handleEndpointMetadata(endpointMatch[1]);
+      const endpointId = endpointMatch[1];
+      const endpoint = getEndpoint(endpointId);
+      if (!endpoint) {
+        return respond(new Response("Not found", { status: 404 }));
+      }
+
+      // Check access key for protected endpoints
+      if (isEndpointProtected(endpoint)) {
+        const accessKey = url.searchParams.get("key") || req.headers.get("x-access-key");
+        if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+          return respond(Response.json({ error: "Access key required", protected: true }, { status: 401 }));
+        }
+      }
+
+      return respond(await handleEndpointMetadata(endpointId));
+    }
+
+    // API: Check if endpoint is protected (no auth required)
+    const protectedCheckMatch = pathname.match(/^\/api\/endpoints\/([a-f0-9]{32})\/protected$/i);
+    if (protectedCheckMatch && req.method === "GET") {
+      const endpoint = getEndpoint(protectedCheckMatch[1]);
+      if (!endpoint) {
+        return respond(new Response("Not found", { status: 404 }));
+      }
+      return respond(Response.json({ protected: isEndpointProtected(endpoint) }));
     }
 
     // API: SSE stream
     const streamMatch = pathname.match(/^\/api\/endpoints\/([a-f0-9]{32})\/stream$/i);
     if (streamMatch && req.method === "GET") {
       const endpointId = streamMatch[1];
-      if (!getEndpoint(endpointId)) {
-        return new Response("Not found", { status: 404 });
+      const endpoint = getEndpoint(endpointId);
+      if (!endpoint) {
+        return respond(new Response("Not found", { status: 404 }));
       }
-      return handleSse(endpointId);
+
+      // Check access key for protected endpoints
+      if (isEndpointProtected(endpoint)) {
+        const accessKey = url.searchParams.get("key") || req.headers.get("x-access-key");
+        if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+          return respond(Response.json({ error: "Access key required", protected: true }, { status: 401 }));
+        }
+      }
+
+      return handleSse(endpointId); // SSE doesn't get security headers (breaks streaming)
     }
 
-    // Webhook capture for valid 32-char hex IDs
+    // Webhook capture for valid 32-char hex IDs (with rate limiting)
     const potentialEndpoint = pathname.slice(1).split("/")[0];
     if (potentialEndpoint && isValidEndpointId(potentialEndpoint)) {
-      return handleWebhookCapture(req, potentialEndpoint, bunServer);
+      const rateCheck = checkRateLimit(requestLimiter, clientIp, RATE_LIMIT_MAX_REQUESTS);
+      if (!rateCheck.allowed) {
+        return respond(rateLimitResponse(rateCheck.resetIn));
+      }
+      return respond(await handleWebhookCapture(req, potentialEndpoint, bunServer));
     }
 
     // Try to serve as a static page (e.g., /features/, /og-image.html)
     if (req.method === "GET") {
       const staticPage = await serveStaticPage(pathname);
       if (staticPage) {
-        return staticPage;
+        return respond(staticPage);
       }
     }
 
-    return new Response("Not found", { status: 404 });
+    return respond(new Response("Not found", { status: 404 }));
   },
 });
 
