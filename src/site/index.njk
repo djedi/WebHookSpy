@@ -1,0 +1,243 @@
+---
+layout: layout.njk
+title: WebhookSpy - Free Webhook Testing & Debugging Tool | Real-time HTTP Inspector
+description: Create instant webhook URLs and capture HTTP requests in real-time. WebhookSpy is a free, open-source tool for testing webhooks, debugging APIs, and inspecting request headers, bodies, and query parameters.
+---
+
+<section class="space-y-12" x-data="homePage()">
+  <!-- Hero Section -->
+  <div class="text-center space-y-6 pt-8 pb-4">
+    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand/10 dark:bg-brand/20 border border-brand/20 text-brand-foreground dark:text-brand-light text-sm font-medium">
+      <span class="relative flex h-2 w-2">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
+      </span>
+      Free & Open Source
+    </div>
+    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight">
+      <span class="text-gradient">Capture</span> and
+      <span class="text-gradient">inspect</span><br class="hidden sm:block">
+      webhooks instantly
+    </h1>
+    <p class="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
+      WebhookSpy gives you a permanent URL that stays active as long as you use it.
+      Watch requests stream in live, and drill into headers, payloads, and query parameters.
+    </p>
+  </div>
+
+  <!-- Main CTA Card -->
+  <div class="relative">
+    <div class="absolute inset-0 bg-gradient-to-r from-brand/20 via-sky-500/20 to-violet-500/20 rounded-3xl blur-2xl opacity-50"></div>
+    <div class="relative glass bg-white/80 dark:bg-slate-900/80 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 sm:p-10 shadow-xl shadow-slate-200/30 dark:shadow-slate-950/50">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+        <div class="space-y-2">
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white">Ready to get started?</h2>
+          <p class="text-slate-600 dark:text-slate-400">Generate your unique webhook URL in one click.</p>
+        </div>
+        <button
+          class="group relative inline-flex items-center justify-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-brand to-brand-dark text-white font-semibold text-lg shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 transition-all duration-200"
+          @click="createEndpoint"
+          :disabled="loading"
+        >
+          <template x-if="!loading">
+            <span class="flex items-center gap-3">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Endpoint
+            </span>
+          </template>
+          <template x-if="loading">
+            <span class="flex items-center gap-3">
+              <svg class="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Generating...
+            </span>
+          </template>
+        </button>
+      </div>
+
+      <!-- Success State -->
+      <template x-if="endpoint">
+        <div class="mt-8 pt-8 border-t border-slate-200 dark:border-slate-700/50 space-y-6" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 -translate-y-4" x-transition:enter-end="opacity-100 translate-y-0">
+          <div class="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
+            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            </div>
+            <div>
+              <p class="font-semibold">Endpoint created successfully!</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Keeps last 100 requests. Data clears after 7 days of inactivity.</p>
+            </div>
+          </div>
+
+          <div class="grid gap-4 lg:grid-cols-2">
+            <!-- Webhook URL -->
+            <div class="group rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 p-5 space-y-3 hover:border-brand/50 transition-colors">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-lg bg-brand/10 dark:bg-brand/20 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                    </svg>
+                  </div>
+                  <span class="font-semibold text-slate-700 dark:text-slate-200">Webhook URL</span>
+                </div>
+                <button
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 hover:bg-brand hover:text-white transition-colors"
+                  @click="copy(endpoint.webhookUrl, 'webhook')"
+                  x-text="copied === 'webhook' ? 'Copied!' : 'Copy'"
+                ></button>
+              </div>
+              <code class="block font-mono text-sm break-all text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-700" x-text="endpoint.webhookUrl"></code>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Send any HTTP request to this URL to capture it</p>
+            </div>
+
+            <!-- Inspector URL -->
+            <div class="group rounded-2xl border border-slate-200 dark:border-slate-700/50 bg-slate-50 dark:bg-slate-800/50 p-5 space-y-3 hover:border-violet-500/50 transition-colors">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                    <svg class="w-4 h-4 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <span class="font-semibold text-slate-700 dark:text-slate-200">Inspector URL</span>
+                </div>
+                <button
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 hover:bg-violet-600 hover:text-white transition-colors"
+                  @click="copy(endpoint.inspectorUrl, 'inspector')"
+                  x-text="copied === 'inspector' ? 'Copied!' : 'Copy'"
+                ></button>
+              </div>
+              <code class="block font-mono text-sm break-all text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 rounded-xl px-4 py-3 border border-slate-200 dark:border-slate-700" x-text="endpoint.inspectorUrl"></code>
+              <a
+                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-medium text-sm transition-colors w-full justify-center"
+                :href="endpoint.inspectorUrl"
+              >
+                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+                Open Inspector
+              </a>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Error State -->
+      <template x-if="error">
+        <div class="mt-6 flex items-center gap-3 p-4 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300">
+          <svg class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span x-text="error"></span>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Features Section -->
+  <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 pt-8">
+    <div class="group glass bg-white/60 dark:bg-slate-900/60 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 p-6 hover:border-brand/50 hover:shadow-lg hover:shadow-brand/5 transition-all duration-300">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand/20 to-brand/10 dark:from-brand/30 dark:to-brand/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+        <svg class="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Use Forever</h3>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">Your URL never expires. Data clears after 7 days of inactivity, but the same URL keeps working.</p>
+    </div>
+
+    <div class="group glass bg-white/60 dark:bg-slate-900/60 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 p-6 hover:border-sky-500/50 hover:shadow-lg hover:shadow-sky-500/5 transition-all duration-300">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-400/20 to-sky-400/10 dark:from-sky-500/30 dark:to-sky-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+        <svg class="w-6 h-6 text-sky-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.789m13.788 0c3.808 3.808 3.808 9.981 0 13.79M12 12h.008v.007H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Real-time Streaming</h3>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">Watch requests appear instantly with Server-Sent Events. No refreshing needed.</p>
+    </div>
+
+    <div class="group glass bg-white/60 dark:bg-slate-900/60 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 p-6 hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/5 transition-all duration-300 sm:col-span-2 lg:col-span-1">
+      <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-400/20 to-violet-400/10 dark:from-violet-500/30 dark:to-violet-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+        <svg class="w-6 h-6 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+        </svg>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">Full Inspection</h3>
+      <p class="text-slate-600 dark:text-slate-400 text-sm leading-relaxed">View headers, query params, and body content. Supports all HTTP methods.</p>
+    </div>
+  </div>
+
+  <!-- How It Works -->
+  <div class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 sm:p-10">
+    <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-8 text-center">How it works</h2>
+    <div class="grid gap-8 md:grid-cols-3">
+      <div class="relative text-center">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand to-brand-dark text-white font-bold text-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand/20">1</div>
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">Generate Endpoint</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Click the button above to create your unique webhook URL.</p>
+        <div class="hidden md:block absolute top-7 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-brand/50 to-transparent"></div>
+      </div>
+      <div class="relative text-center">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-sky-600 text-white font-bold text-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-500/20">2</div>
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">Send Requests</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Point any webhook or HTTP client at your URL.</p>
+        <div class="hidden md:block absolute top-7 left-[60%] w-[80%] h-0.5 bg-gradient-to-r from-sky-500/50 to-transparent"></div>
+      </div>
+      <div class="text-center">
+        <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-violet-600 text-white font-bold text-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-violet-500/20">3</div>
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">Inspect Live</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Watch requests stream in real-time with full details.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener("alpine:init", () => {
+    Alpine.data("homePage", homePage);
+  });
+
+  function homePage() {
+    return {
+      endpoint: null,
+      loading: false,
+      error: "",
+      copied: null,
+      async createEndpoint() {
+        this.loading = true;
+        this.error = "";
+        this.endpoint = null;
+        try {
+          const response = await fetch("/api/endpoints", { method: "POST" });
+          if (!response.ok) {
+            throw new Error("Unable to create endpoint");
+          }
+          const payload = await response.json();
+          this.endpoint = {
+            id: payload.id,
+            webhookUrl: `${location.origin}/${payload.id}`,
+            inspectorUrl: `${location.origin}/inspect/${payload.id}`,
+          };
+        } catch (error) {
+          this.error = error.message || "Unknown error";
+        } finally {
+          this.loading = false;
+        }
+      },
+      async copy(value, type) {
+        await navigator.clipboard.writeText(value);
+        this.copied = type;
+        setTimeout(() => {
+          this.copied = null;
+        }, 2000);
+      },
+    };
+  }
+</script>

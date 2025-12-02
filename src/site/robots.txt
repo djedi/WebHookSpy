@@ -1,0 +1,13 @@
+# WebhookSpy robots.txt
+# https://webhookspy.com
+
+User-agent: *
+Allow: /
+Disallow: /inspect/
+Disallow: /api/
+
+# Sitemap location
+Sitemap: https://webhookspy.com/sitemap.xml
+
+# Crawl-delay for polite crawling
+Crawl-delay: 1

@@ -1,0 +1,15 @@
+services:
+  webhookspy:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "${PORT:-8147}:8147"
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./eleventy.config.js:/app/eleventy.config.js
+      - ./_site:/app/_site
+    environment:
+      - PORT=8147
+    restart: unless-stopped

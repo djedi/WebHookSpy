@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title | default("WebhookSpy - Free Webhook Testing & Debugging Tool") }}</title>
+    <meta name="description" content="{{ description | default('WebhookSpy is a free, open-source webhook testing tool. Create instant webhook URLs, capture HTTP requests in real-time, and inspect headers, payloads, and query parameters. Perfect for API development and debugging.') }}" />
+    <meta name="keywords" content="webhook tester, webhook debugger, HTTP request inspector, API testing, webhook URL generator, request capture, real-time webhook, free webhook tool, open source webhook" />
+    <meta name="author" content="WebhookSpy" />
+    <link rel="icon" href="/assets/favicon.svg" />
+    <link rel="canonical" href="https://webhookspy.com{{ page.url }}" />
+    <meta name="color-scheme" content="light dark" />
+    {% if noindex %}<meta name="robots" content="noindex, nofollow" />{% endif %}
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://webhookspy.com{{ page.url }}" />
+    <meta property="og:title" content="{{ title | default('WebhookSpy - Free Webhook Testing & Debugging Tool') }}" />
+    <meta property="og:description" content="{{ description | default('Create instant webhook URLs and capture HTTP requests in real-time. Free, open-source webhook testing tool for developers.') }}" />
+    <meta property="og:image" content="https://webhookspy.com/assets/og-image.png" />
+    <meta property="og:site_name" content="WebhookSpy" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://webhookspy.com{{ page.url }}" />
+    <meta name="twitter:title" content="{{ title | default('WebhookSpy - Free Webhook Testing & Debugging Tool') }}" />
+    <meta name="twitter:description" content="{{ description | default('Create instant webhook URLs and capture HTTP requests in real-time. Free, open-source webhook testing tool for developers.') }}" />
+    <meta name="twitter:image" content="https://webhookspy.com/assets/og-image.png" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "WebhookSpy",
+      "url": "https://webhookspy.com",
+      "description": "Free, open-source webhook testing and debugging tool. Create instant webhook URLs and inspect HTTP requests in real-time.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "Any",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Instant webhook URL generation",
+        "Real-time request streaming via Server-Sent Events",
+        "Full HTTP request inspection (headers, body, query parameters)",
+        "Support for all HTTP methods",
+        "7-day data retention",
+        "No registration required"
+      ],
+      "screenshot": "https://webhookspy.com/assets/og-image.png",
+      "softwareVersion": "1.0",
+      "creator": {
+        "@type": "Organization",
+        "name": "WebhookSpy"
+      }
+    }
+    </script>
+    {% if page.url == "/" %}
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is WebhookSpy?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "WebhookSpy is a free, open-source webhook testing tool that lets you create instant webhook URLs to capture and inspect HTTP requests in real-time. It's perfect for debugging webhooks during API development."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How long do WebhookSpy URLs last?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "WebhookSpy URLs are permanent and never expire. However, captured request data is automatically cleared after 7 days of inactivity. The URL will continue working and will start capturing new requests again."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is WebhookSpy free to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, WebhookSpy is completely free and open-source. There's no registration required, no usage limits, and no premium tiers."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How many requests can I capture?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Each endpoint stores the last 100 requests. When new requests come in after reaching the limit, the oldest requests are automatically removed."
+          }
+        }
+      ]
+    }
+    </script>
+    {% endif %}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
+            },
+            colors: {
+              brand: {
+                DEFAULT: "#14b8a6",
+                light: "#5eead4",
+                dark: "#0d9488",
+                foreground: "#0f766e",
+              },
+            },
+            animation: {
+              'gradient': 'gradient 8s ease infinite',
+              'float': 'float 6s ease-in-out infinite',
+              'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'shimmer': 'shimmer 2s linear infinite',
+            },
+            keyframes: {
+              gradient: {
+                '0%, 100%': { backgroundPosition: '0% 50%' },
+                '50%': { backgroundPosition: '100% 50%' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0px)' },
+                '50%': { transform: 'translateY(-10px)' },
+              },
+              shimmer: {
+                '0%': { backgroundPosition: '-200% 0' },
+                '100%': { backgroundPosition: '200% 0' },
+              },
+            },
+            backgroundSize: {
+              '300%': '300%',
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      [x-cloak] {
+        display: none !important;
+      }
+      .glass {
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      .gradient-border {
+        position: relative;
+      }
+      .gradient-border::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(135deg, #14b8a6, #0ea5e9, #8b5cf6, #14b8a6);
+        background-size: 300% 300%;
+        animation: gradient 8s ease infinite;
+        -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+      }
+      .text-gradient {
+        background: linear-gradient(135deg, #14b8a6 0%, #0ea5e9 50%, #8b5cf6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .bg-grid {
+        background-image:
+          linear-gradient(to right, rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(148, 163, 184, 0.1) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+      .dark .bg-grid {
+        background-image:
+          linear-gradient(to right, rgba(148, 163, 184, 0.05) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(148, 163, 184, 0.05) 1px, transparent 1px);
+      }
+      .glow {
+        box-shadow: 0 0 40px rgba(20, 184, 166, 0.15);
+      }
+      .dark .glow {
+        box-shadow: 0 0 60px rgba(20, 184, 166, 0.2);
+      }
+    </style>
+    <script>
+      (function () {
+        const storageKey = "webhookspy-theme";
+        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+        const getStoredTheme = () => {
+          try {
+            return localStorage.getItem(storageKey) || "system";
+          } catch {
+            return "system";
+          }
+        };
+        const applyTheme = (theme) => {
+          const prefersDark = mediaQuery.matches;
+          const isDark = theme === "dark" || (theme === "system" && prefersDark);
+          document.documentElement.classList.toggle("dark", isDark);
+        };
+        const setTheme = (theme) => {
+          try {
+            localStorage.setItem(storageKey, theme);
+          } catch {
+            /* ignore write failures */
+          }
+          applyTheme(theme);
+          window.dispatchEvent(new CustomEvent("theme:change", { detail: theme }));
+        };
+        applyTheme(getStoredTheme());
+        mediaQuery.addEventListener("change", () => {
+          if (getStoredTheme() === "system") {
+            applyTheme("system");
+            window.dispatchEvent(new CustomEvent("theme:change", { detail: "system" }));
+          }
+        });
+        window.__theme = {
+          get: getStoredTheme,
+          set: setTheme,
+          storageKey,
+        };
+      })();
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </head>
+  <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans antialiased transition-colors overflow-x-hidden">
+    <!-- Ambient background effects -->
+    <div class="fixed inset-0 -z-10 overflow-hidden">
+      <div class="absolute top-0 left-1/4 w-96 h-96 bg-brand/20 dark:bg-brand/10 rounded-full blur-3xl animate-pulse-slow"></div>
+      <div class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-sky-400/20 dark:bg-sky-500/10 rounded-full blur-3xl animate-pulse-slow" style="animation-delay: 1s"></div>
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-violet-400/10 dark:bg-violet-500/5 rounded-full blur-3xl animate-pulse-slow" style="animation-delay: 2s"></div>
+      <div class="absolute inset-0 bg-grid"></div>
+    </div>
+
+    <div class="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <!-- Top navigation bar -->
+      <nav class="flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <a href="/" class="flex items-center group">
+            <svg viewBox="0 0 717.09 341.06" class="h-8 sm:h-10 w-auto fill-slate-900 dark:fill-white">
+            <path d="M24.54,85.7l17.51,67c2.66.24,1.62.04,1.97-1.51,1.74-7.69,14.12-63.3,17-65.02,4.25-.32,23.49-1.62,25.55.49l17.97,66.04,16.42-65.59c.9-1.27,2.16-1.28,3.53-1.47,3.55-.47,14.55-.48,18.09,0,1.99.27,3.47.6,4.26,2.68l-27.23,90.44c-2.16,1.54-27.56,1.52-29.1-.05l-16.97-58.04-15.77,55.24c-.51,1.18-1.59,2.74-2.75,3.25-1.9.84-22.68,1.03-25.46.5-1.76-.33-2.54-1.12-3.4-2.6L0,88.23c-.02-.82.97-2.53,1.53-2.53h23Z"/>
+            <path d="M333.04,206.7l1.01,11.99c1.61-.49,1.89-2.64,3.44-4.05,11.87-10.79,35.04-10.7,47.87-1.77,18.56,12.91,19.9,46.74,12.44,66.08-9.74,25.26-41.55,32.67-62.76,16.74v42.5c0,3.41-15.49,2.8-18.54,2.54-2.16-.18-6.46-.61-6.46-3.54v-129.5c.98.32,2.17-1,2.5-1h20.5ZM352.8,226.96c-24.47,2.97-23.1,51.87-1.83,56.31,13.15,2.74,21.19-3.75,23.8-16.32,3.45-16.66.69-42.74-21.97-39.99Z"/>
+            <path d="M372.04,177.2c-.98,3.52-16.12,2.9-19.56,2.56-2.38-.23-4.29-.06-5.24-2.76-.61-26.6.11-53.23-.16-79.84-.15-15.37-2.38-31.5-1.08-47,.4-4.73.5-5.93,5.52-6.46,3.82-.4,20.52-1.33,20.52,3.5v47.5c18.14-18.28,54.71-13.52,60.75,13.75,2.62,11.83,2.72,53.1,1.27,65.76-.16,1.44-.46,3.49-1.49,4.51-1.65,1.63-20.59,1.49-22.86.05-1.54-.97-1.56-3.8-1.71-5.54-1.45-17.15,1.86-37.13.04-54.05-1.34-12.54-12.86-15.66-23.82-12.81-5.34,1.39-12.18,9.37-12.18,14.82v56Z"/>
+            <path d="M656.04,124.7l35.02-38.48c2.4-1.09,22.76-.97,24.56.4.77.59,1.46,1.59,1.45,2.59-.03,3.65-35.06,36.91-34.79,40.01,4.14,6.63,35.21,43.59,34.82,47.97-.05.57-.12,1.11-.48,1.58-1.4,1.88-22.61.91-26.56.42l-24.52-32.49-9.49,9.5v22c-.63.99-1.38,1.29-2.5,1.5-2.52.46-18.74.3-20.48-.51-.47-.22-2.02-1.81-2.02-1.98V46.2c0-1.79,3.96-2.41,5.44-2.56,3.13-.31,19.56-.82,19.56,2.56v78.5Z"/>
+            <path d="M410.04,322.2c.95-2.88,14.68-1.13,18.97-3.03,2.92-1.29,9-12.9,8.93-15.99l-37.4-89.46-.35-5.88c.9-1.43,20.39-1.58,23.41-1.19,1.39.18,2.6.22,3.51,1.49l23.44,67.56,20.97-68.02c1.31-1.34,19.23-1.48,22-.94,1.99.38,3.26,1.48,3.56,3.52-13.49,33.74-23.36,69.17-37.28,102.7-5.66,13.64-10.97,25.25-27.51,27.49-3.99.54-15.05.93-18.72.23-1.1-.21-3.53-1.73-3.53-2.47v-16Z"/>
+            <path d="M232.04,177.2c-1.53,1.78-3.23,2.26-5.48,2.52-10.22,1.19-46.18,1.02-55.06-1.98-21.16-7.15-24.52-29.86-23.51-49.59,1.88-36.62,20.76-46.52,55.53-43.44,32.08,2.85,37.21,29.65,32.37,56.84l-62.86,1.14c-.02,4.04,1.14,10.46,3.98,13.52,7.69,8.26,39.63,3.03,51.57,4.43,1.46.17,2.57.12,3.45,1.55v15ZM213.04,123.7c.11-14.32-6.37-20.22-20.49-20.08-13.63.13-19.28,6.67-19.51,20.08h40Z"/>
+            <path d="M221.04,285.2c1.12-3.64,10.32-1.3,13.55-1.45,2.82-.13,5.32-1.01,7.91-1.09,8.7-.25,20.94,1.25,28.98-.02,8.14-1.28,9.11-15.5-3.93-16.94-13.2-1.46-35.1,3.24-43.7-10.3s-6.76-38.2,9.19-45.19c9.46-4.15,46.74-4.98,57.55-3.54,6.23.83,5.1,11.41,4.51,16.6-.48,4.16-2.93,4.17-6.51,4.49-12.07,1.07-31.04-2.21-41.83.17-7.46,1.64-6.35,13.95,1,15.58,13.36,2.95,29.48-1.66,42.32,5.68,17.66,10.1,14.43,44.48-5.34,51.72-11.17,4.09-38.84,1.56-52.23,1.77-4.1.07-7.88,2.85-11.46-1.46v-16Z"/>
+            <path d="M319.04,119.7c-.55-.77-14,9.82-16.99,7.51l26.11-40.38c3.36-.62,4.55,1.42,4.93,4.33,1.39,10.67.85,36.83-.06,48.03-4.23,51.83-73.19,55.62-81.97,5.01V46.41c-19.01-7.15-22.42-35.67-3.01-44.21,25.28-11.13,45.15,22.72,25.02,39.02-2.61,2.11-7.49,3.13-8.03,5.97v93.99c2.83,28.37,38.95,35.18,50.88,9.88.63-1.34,3.13-8.04,3.13-8.87v-22.5ZM264.68,17.06c-8.85-8.86-22.03,5.28-12.71,13.21,9.17,7.8,20.53-5.38,12.71-13.21Z"/>
+            <path d="M506.04,86.7c10.53-7.2,21.13-10.6,34.04-8.55,6.61,1.05,12.93,4.93,18.94,7.55l-2.54-6.01c24.6-21.2,51.09-.12,58.54,26.01l-13.32-7.17c-30.54-14.08-65.7,8.99-65.67,42.18h-6.01c.19-22.07-17.38-41.55-38.77-45.73-15.49-3.03-27.65,2.11-40.22,10.73,6.21-26.03,34.81-48.78,57.84-25.35l-2.84,6.35Z"/>
+            <path d="M478.83,101c48.78-4.23,60.69,64.35,16.43,78.42-57.16,18.18-75.75-73.28-16.43-78.42ZM478.82,110.99c-43.19,4.59-29.87,72.11,13.19,58.19,34.02-11,23.22-62.05-13.19-58.19Z"/>
+            <path d="M579.83,101c46.99-3.81,61.26,62.16,16.89,77.89-56.74,20.12-77.11-73.01-16.89-77.89ZM579.81,110.99c-40.24,4.29-32.03,64.79,7.64,59.63,37.95-4.94,32.72-63.93-7.64-59.63Z"/>
+            <path d="M521.12,64.64c7.29-1.33,14.93-1.49,22.26-.04,4.06-5.45,6.14-10.33,12.61-13.44,16.2-7.78,32.27.9,37.03,17.53-14.06-5.97-29.93-4.95-40.64,6.85-12.1-6.26-26.88-7.39-38.72.06-10.32-10.79-27.3-14.01-40.63-6.9,5.42-24.5,39.39-28.15,48.08-4.06Z"/>
+            <path d="M476.76,119.93c22.45-4.62,37.56,23.45,18.6,37.6s-43.75-8.37-31.16-28.16c2.22-3.5,8.52-8.6,12.56-9.43Z"/>
+            <path d="M577.78,119.94c19.01-3.25,34.55,14.46,23.67,31.67-12.27,19.41-42.34,9.04-39.14-14.15,1.07-7.79,7.51-16.16,15.48-17.52Z"/>
+          </svg>
+          </a>
+          <a href="/features/" class="hidden sm:inline-flex text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-brand dark:hover:text-brand transition-colors">Features</a>
+        </div>
+
+        <button
+          x-data="themeSwitcher()"
+          x-init="init()"
+          x-cloak
+          type="button"
+          class="inline-flex items-center justify-center w-10 h-10 rounded-full glass bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm hover:bg-white hover:dark:bg-slate-800 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-slate-950 transition-all duration-200"
+          @click="cycle()"
+          :title="'Theme: ' + labelFor(theme)"
+        >
+          <template x-if="theme === 'light'">
+            <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" /></svg>
+          </template>
+          <template x-if="theme === 'dark'">
+            <svg class="w-5 h-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" /></svg>
+          </template>
+          <template x-if="theme === 'system'">
+            <svg class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
+          </template>
+        </button>
+      </nav>
+
+      <main>
+        {{ content | safe }}
+      </main>
+
+      <footer class="pt-12 pb-6 space-y-6">
+        <div class="flex flex-wrap items-center justify-center gap-4 text-sm">
+          <a href="/" class="text-slate-600 dark:text-slate-400 hover:text-brand dark:hover:text-brand transition-colors">Home</a>
+          <span class="text-slate-300 dark:text-slate-700">|</span>
+          <a href="/features/" class="text-slate-600 dark:text-slate-400 hover:text-brand dark:hover:text-brand transition-colors">Features</a>
+        </div>
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+          <div class="flex items-center gap-2">
+            <span class="font-medium text-slate-700 dark:text-slate-300">Built with</span>
+            <div class="flex items-center gap-1">
+              <span class="px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 text-xs font-medium">Bun</span>
+              <span class="px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-xs font-medium">SQLite</span>
+              <span class="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-medium">11ty</span>
+              <span class="px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs font-medium">Alpine</span>
+              <span class="px-2 py-0.5 rounded-full bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300 text-xs font-medium">Tailwind</span>
+            </div>
+          </div>
+        </div>
+        <p class="text-center text-xs text-slate-400 dark:text-slate-500">Free webhook testing tool for developers. No signup required.</p>
+      </footer>
+    </div>
+    <script>
+      document.addEventListener("alpine:init", () => {
+        Alpine.data("themeSwitcher", () => ({
+          theme: window.__theme?.get() ?? "system",
+          modes: ["system", "light", "dark"],
+          init() {
+            this.theme = this.currentTheme();
+            this.onThemeChange = () => {
+              this.theme = this.currentTheme();
+            };
+            this.onStorage = (event) => {
+              if (event.key === (window.__theme?.storageKey ?? "")) {
+                this.theme = this.currentTheme();
+              }
+            };
+            window.addEventListener("theme:change", this.onThemeChange);
+            window.addEventListener("storage", this.onStorage);
+          },
+          currentTheme() {
+            return window.__theme?.get() ?? "system";
+          },
+          cycle() {
+            const currentIndex = this.modes.indexOf(this.theme);
+            const nextIndex = (currentIndex + 1) % this.modes.length;
+            this.theme = this.modes[nextIndex];
+            window.__theme?.set(this.theme);
+          },
+          labelFor(value) {
+            const labels = { system: "System", light: "Light", dark: "Dark" };
+            return labels[value] || "System";
+          },
+        }));
+      });
+    </script>
+  </body>
+</html>

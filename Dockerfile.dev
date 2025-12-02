@@ -1,0 +1,17 @@
+FROM oven/bun:1
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json bun.lock ./
+
+# Install dependencies
+RUN bun install
+
+# Copy config files
+COPY tsconfig.json ./
+
+# Source files are mounted as volumes
+
+# Build the site initially
+CMD ["sh", "-c", "bun run build && bun run dev"]

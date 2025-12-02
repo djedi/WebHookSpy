@@ -1,0 +1,197 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COMPOSE_FILE="docker-compose.dev.yml"
+PROJECT_NAME="webhookspy-dev"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+usage() {
+    echo -e "${BLUE}WebhookSpy Development Script${NC}"
+    echo ""
+    echo "Usage: ./dev [command] [options]"
+    echo ""
+    echo "Commands:"
+    echo "  (none)        Start the development server (default)"
+    echo "  up            Start the development server"
+    echo "  down          Stop and remove containers"
+    echo "  restart       Restart the development server"
+    echo "  rebuild       Rebuild the container and start"
+    echo "  logs          Show container logs"
+    echo "  shell         Open a shell in the container"
+    echo "  status        Show container status"
+    echo "  clean         Stop containers and remove volumes/images"
+    echo ""
+    echo "Options:"
+    echo "  -d, --detach  Run in detached mode (background)"
+    echo "  -f, --follow  Follow logs (for 'logs' command)"
+    echo "  -b, --build   Force rebuild before starting"
+    echo "  -h, --help    Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  ./dev                 # Start dev server with logs"
+    echo "  ./dev -d              # Start in background"
+    echo "  ./dev logs -f         # Follow logs"
+    echo "  ./dev restart         # Restart the server"
+    echo "  ./dev rebuild         # Rebuild and start"
+    echo "  ./dev shell           # Open bash in container"
+}
+
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+docker_compose() {
+    docker compose -f "$COMPOSE_FILE" -p "$PROJECT_NAME" "$@"
+}
+
+cmd_up() {
+    local detach=false
+    local build=false
+
+    for arg in "$@"; do
+        case $arg in
+            -d|--detach) detach=true ;;
+            -b|--build) build=true ;;
+        esac
+    done
+
+    log_info "Starting WebhookSpy development server..."
+
+    local args=("up")
+    if $build; then
+        args+=("--build")
+    fi
+    if $detach; then
+        args+=("-d")
+        docker_compose "${args[@]}"
+        log_info "Server started in background on http://localhost:${PORT:-8147}"
+        log_info "Run './dev logs -f' to view logs"
+    else
+        docker_compose "${args[@]}"
+    fi
+}
+
+cmd_down() {
+    log_info "Stopping WebhookSpy development server..."
+    docker_compose down "$@"
+    log_info "Server stopped"
+}
+
+cmd_restart() {
+    log_info "Restarting WebhookSpy development server..."
+    docker_compose restart "$@"
+    log_info "Server restarted"
+}
+
+cmd_rebuild() {
+    log_info "Rebuilding and starting WebhookSpy..."
+    docker_compose down 2>/dev/null || true
+    docker_compose build --no-cache
+    cmd_up "$@"
+}
+
+cmd_logs() {
+    local follow=false
+    local lines=100
+
+    for arg in "$@"; do
+        case $arg in
+            -f|--follow) follow=true ;;
+        esac
+    done
+
+    local args=("logs")
+    args+=("-n" "$lines")
+    if $follow; then
+        args+=("-f")
+    fi
+
+    docker_compose "${args[@]}"
+}
+
+cmd_shell() {
+    log_info "Opening shell in container..."
+    docker_compose exec webhookspy sh
+}
+
+cmd_status() {
+    echo -e "${BLUE}Container Status:${NC}"
+    docker_compose ps
+    echo ""
+    echo -e "${BLUE}Resource Usage:${NC}"
+    docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" $(docker_compose ps -q 2>/dev/null) 2>/dev/null || echo "No running containers"
+}
+
+cmd_clean() {
+    log_warn "This will remove containers, volumes, and images for this project"
+    read -p "Are you sure? (y/N) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log_info "Cleaning up..."
+        docker_compose down -v --rmi local 2>/dev/null || true
+        log_info "Cleanup complete"
+    else
+        log_info "Cleanup cancelled"
+    fi
+}
+
+# Parse command
+COMMAND="${1:-up}"
+shift 2>/dev/null || true
+
+case $COMMAND in
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    up|start)
+        cmd_up "$@"
+        ;;
+    down|stop)
+        cmd_down "$@"
+        ;;
+    restart)
+        cmd_restart "$@"
+        ;;
+    rebuild)
+        cmd_rebuild "$@"
+        ;;
+    logs|log)
+        cmd_logs "$@"
+        ;;
+    shell|sh|bash)
+        cmd_shell "$@"
+        ;;
+    status|ps)
+        cmd_status "$@"
+        ;;
+    clean|prune)
+        cmd_clean "$@"
+        ;;
+    -d|--detach)
+        cmd_up -d "$@"
+        ;;
+    -b|--build)
+        cmd_up -b "$@"
+        ;;
+    *)
+        log_error "Unknown command: $COMMAND"
+        echo ""
+        usage
+        exit 1
+        ;;
+esac

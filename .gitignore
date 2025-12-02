@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+_site/
+dist/
+
+# Data & database
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor & IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Temp files
+tmp/
+.tmp/
+*.tmp
+
+# Bun
+bun.lockb
+
+# Docker
+.docker/

@@ -1,0 +1,17 @@
+{
+  "name": "webhookspy",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run --watch src/server.ts",
+    "start": "bun run src/server.ts",
+    "build:site": "eleventy --config=eleventy.config.js",
+    "build": "bun run build:site"
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^3.0.0",
+    "@types/bun": "^1.0.5",
+    "typescript": "^5.5.4"
+  }
+}

@@ -1,0 +1,209 @@
+---
+layout: layout.njk
+title: Features - WebhookSpy | Webhook Testing Tool Capabilities
+description: Explore WebhookSpy features including real-time request streaming, permanent webhook URLs, full HTTP inspection, and support for all HTTP methods. Free and open-source webhook testing.
+---
+
+<section class="space-y-16">
+  <!-- Hero Section -->
+  <div class="text-center space-y-6 pt-8">
+    <h1 class="text-4xl sm:text-5xl font-bold tracking-tight">
+      <span class="text-gradient">Powerful Features</span> for<br class="hidden sm:block">
+      Webhook Development
+    </h1>
+    <p class="text-lg sm:text-xl text-slate-600 dark:text-slate-400 max-w-3xl mx-auto leading-relaxed">
+      WebhookSpy provides everything you need to test, debug, and inspect webhooks during development.
+      No signup required, completely free, and open-source.
+    </p>
+    <a href="/" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-brand to-brand-dark text-white font-semibold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Create Free Endpoint
+    </a>
+  </div>
+
+  <!-- Main Features Grid -->
+  <div class="grid gap-8 lg:grid-cols-2">
+    <!-- Feature 1: Real-time Streaming -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand/20 to-brand/10 dark:from-brand/30 dark:to-brand/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-brand" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.348 14.651a3.75 3.75 0 010-5.303m5.304 0a3.75 3.75 0 010 5.303m-7.425 2.122a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.789m13.788 0c3.808 3.808 3.808 9.981 0 13.79M12 12h.008v.007H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Real-time Request Streaming</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        Watch webhook requests appear instantly as they arrive. WebhookSpy uses Server-Sent Events (SSE) to push
+        new requests to your browser without any manual refreshing. Perfect for debugging webhook integrations
+        where timing matters.
+      </p>
+      <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Instant updates via Server-Sent Events
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          No page refresh needed
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-brand" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Automatic reconnection on network issues
+        </li>
+      </ul>
+    </article>
+
+    <!-- Feature 2: Permanent URLs -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-400/20 to-sky-400/10 dark:from-sky-500/30 dark:to-sky-500/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-sky-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Permanent Webhook URLs</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        Your webhook URL never expires. Configure it once in your third-party service and it will keep working
+        indefinitely. Request data is cleared after 7 days of inactivity, but the endpoint stays active and
+        continues capturing new requests.
+      </p>
+      <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          URLs never expire
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Data retention: 7 days of inactivity
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Stores last 100 requests per endpoint
+        </li>
+      </ul>
+    </article>
+
+    <!-- Feature 3: Full HTTP Inspection -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400/20 to-violet-400/10 dark:from-violet-500/30 dark:to-violet-500/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Complete HTTP Request Inspection</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        Examine every detail of incoming requests. View HTTP headers, request body content, query string parameters,
+        source IP addresses, and request paths. JSON payloads are automatically formatted with syntax highlighting
+        for easy reading.
+      </p>
+      <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Headers, body, and query params
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          JSON syntax highlighting
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Source IP tracking
+        </li>
+      </ul>
+    </article>
+
+    <!-- Feature 4: All HTTP Methods -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400/20 to-amber-400/10 dark:from-amber-500/30 dark:to-amber-500/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Support for All HTTP Methods</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        WebhookSpy captures requests using any HTTP method. Whether your webhook sends GET, POST, PUT, PATCH, DELETE,
+        or any custom method, it will be captured and displayed with color-coded method badges for quick identification.
+      </p>
+      <ul class="space-y-2 text-sm text-slate-600 dark:text-slate-400">
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          GET, POST, PUT, PATCH, DELETE
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Custom HTTP methods supported
+        </li>
+        <li class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+          Color-coded method indicators
+        </li>
+      </ul>
+    </article>
+  </div>
+
+  <!-- Use Cases Section -->
+  <div class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 sm:p-12">
+    <h2 class="text-3xl font-bold text-slate-900 dark:text-white mb-8 text-center">Common Use Cases</h2>
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div class="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">Payment Gateway Testing</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Debug Stripe, PayPal, or other payment provider webhooks during checkout integration.</p>
+      </div>
+      <div class="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">GitHub/GitLab Webhooks</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Test repository events like push, pull requests, and CI/CD pipeline triggers.</p>
+      </div>
+      <div class="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">Chat & Messaging Bots</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Debug Slack, Discord, or Telegram bot webhooks and message payloads.</p>
+      </div>
+      <div class="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">E-commerce Integrations</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Test order notifications, inventory updates, and shipping status webhooks.</p>
+      </div>
+      <div class="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">IoT Device Callbacks</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Capture and inspect data from IoT devices, sensors, and smart home integrations.</p>
+      </div>
+      <div class="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
+        <h3 class="font-semibold text-slate-900 dark:text-white mb-2">API Development</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Test outgoing webhook implementations before deploying to production.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Technical Specs -->
+  <div class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 sm:p-12">
+    <h2 class="text-3xl font-bold text-slate-900 dark:text-white mb-8 text-center">Technical Specifications</h2>
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div class="text-center p-6">
+        <div class="text-4xl font-bold text-brand mb-2">100</div>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Requests stored per endpoint</p>
+      </div>
+      <div class="text-center p-6">
+        <div class="text-4xl font-bold text-sky-500 mb-2">512KB</div>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Max request body size</p>
+      </div>
+      <div class="text-center p-6">
+        <div class="text-4xl font-bold text-violet-500 mb-2">7 days</div>
+        <p class="text-sm text-slate-600 dark:text-slate-400">Data retention period</p>
+      </div>
+      <div class="text-center p-6">
+        <div class="text-4xl font-bold text-amber-500 mb-2">&infin;</div>
+        <p class="text-sm text-slate-600 dark:text-slate-400">URL lifetime (never expires)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA Section -->
+  <div class="text-center space-y-6 py-8">
+    <h2 class="text-3xl font-bold text-slate-900 dark:text-white">Ready to start testing?</h2>
+    <p class="text-lg text-slate-600 dark:text-slate-400">Create your first webhook endpoint in seconds. No signup required.</p>
+    <a href="/" class="inline-flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-brand to-brand-dark text-white font-semibold text-lg shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Get Started Free
+    </a>
+  </div>
+</section>
