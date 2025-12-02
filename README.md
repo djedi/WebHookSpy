@@ -12,6 +12,25 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js,
 - **Secure endpoints** – Optionally protect endpoints with access keys for testing sensitive webhooks.
 - **Security hardened** – Rate limiting, security headers (CSP, X-Frame-Options), and XSS protection built-in.
 
+## Architecture Overview
+
+```
+┌────────────┐    captures/streams     ┌───────────────────────────┐
+│ HTTP client│ ──────────────────────▶ │ Bun server (src/server.ts)│
+└────────────┘                         │  • REST + webhook catcher │
+                                       │  • SQLite persistence     │
+                                       └────────────┬──────────────┘
+                                                    │ serves
+                                                    ▼
+                                       ┌───────────────────────────┐
+                                       │ 11ty site (src/site)      │
+                                       │  • Tailwind + Alpine UI   │
+                                       │  • Live inspector (#SSE)  │
+                                       └───────────────────────────┘
+```
+
+The Bun server exposes `/api` endpoints, captures any HTTP request to `/{endpointId}`, and uses SQLite for storage and retention rules. The frontend is generated with 11ty/Nunjucks templates and Alpine.js for interactivity, compiled into `_site/` and served by the same Bun process.
+
 ## Prerequisites
 
 **Option A: Docker (recommended)**
@@ -29,6 +48,7 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js,
 
 ```bash
 # clone the repo, then
+git clone https://github.com/djedi/WebHookSpy.git
 cd WebhookSpy
 
 # start the development server
@@ -41,6 +61,7 @@ That's it! The script builds the site and starts the server with hot reload.
 
 ```bash
 # clone the repo, then
+git clone https://github.com/djedi/WebHookSpy.git
 cd WebhookSpy
 
 # install dependencies
@@ -201,7 +222,7 @@ volumes:
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourusername/WebhookSpy.git
+git clone https://github.com/djedi/WebHookSpy.git
 cd WebhookSpy
 
 # Build locally
@@ -229,16 +250,17 @@ For testing webhooks with sensitive data, create a **Secure Endpoint**:
 
 To prevent abuse, WebhookSpy enforces per-IP rate limits:
 
-| Action             | Limit              |
-| ------------------ | ------------------ |
-| Endpoint creation  | 10 per minute      |
-| Webhook requests   | 100 per minute     |
+| Action            | Limit          |
+| ----------------- | -------------- |
+| Endpoint creation | 10 per minute  |
+| Webhook requests  | 100 per minute |
 
 Exceeding limits returns HTTP 429 with a `Retry-After` header.
 
 ### Security Headers
 
 All responses include security headers:
+
 - `Content-Security-Policy` – Restricts script/style sources
 - `X-Frame-Options: DENY` – Prevents clickjacking
 - `X-Content-Type-Options: nosniff` – Prevents MIME sniffing
@@ -308,10 +330,31 @@ data/              # SQLite database (created on demand)
 | `bun run start` | Start the Bun server once (no watching). |
 | `bun run build` | Build the 11ty site into `_site/`.       |
 
+## Contributing
+
+Contributions are welcome whether it's bug reports, docs, or new features.
+
+1. Fork the repository and create a feature branch (`git checkout -b feature/my-idea`).
+2. Run `bun install` once, then use `bun run dev` or `./dev` for a live server while you work.
+3. Please run `bun run build` before opening a PR to ensure the 11ty site still builds.
+4. Open a pull request that describes the change, how to test it, and links to any related issues.
+
+Not sure where to start? Check the [issue tracker](https://github.com/djedi/WebHookSpy/issues) for `good first issue` or `help wanted` labels, or open a discussion with your proposal.
+
+## Community & Support
+
+- **Questions / ideas**: [GitHub Discussions](https://github.com/djedi/WebHookSpy/discussions) or start a new issue.
+- **Bug reports**: include Bun version, OS, reproduction steps, and relevant logs/SSE output in a [GitHub issue](https://github.com/djedi/WebHookSpy/issues).
+- **Security concerns**: please email the maintainer or open a private security advisory instead of a public issue.
+
 ## Troubleshooting
 
 - **Inspector page shows “Inspector unavailable”**: Run `bun run build` so `_site/endpoint/index.html` exists.
 - **No requests appear**: Make sure you are hitting the webhook URL (e.g., `http://localhost:8147/abcdef123...`) and that the inspector tab stays open to keep the SSE connection alive.
 - **Theme switch stuck**: The theme toggle stores its choice in `localStorage` under `webhookspy-theme`. Clear it if you need to reset to system defaults.
+
+## License
+
+WebhookSpy is released under the [MIT License](LICENSE). Feel free to fork, deploy, and build on it in your own stack.
 
 Happy debugging!
