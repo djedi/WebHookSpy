@@ -1,5 +1,9 @@
 # WebhookSpy
 
+<p align="center">
+  <img src="webhookspy-logo.png" alt="WebhookSpy logo" width="320" />
+</p>
+
 WebhookSpy is a lightweight webhook inspector powered by Bun, SQLite, Alpine.js, Tailwind CSS, and 11ty. It gives you permanent HTTP endpoints that you can use forever for testing, stream payloads over Server-Sent Events (SSE), and present the captures in a modern, polished UI.
 
 ## Features
