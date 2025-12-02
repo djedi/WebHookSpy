@@ -1,9 +1,11 @@
-import type { Server } from "bun";
+import { Elysia, t } from "elysia";
+import { swagger } from "@elysiajs/swagger";
 import { Database } from "bun:sqlite";
 import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
 
+// Types
 type EndpointRow = {
   id: string;
   created_at: string;
@@ -36,6 +38,12 @@ type SerializableRequest = {
   ip: string | null;
 };
 
+type Subscriber = {
+  send: (payload: string) => void;
+  close: () => void;
+};
+
+// Path setup
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.join(__dirname, "..");
 const siteDir = path.join(projectRoot, "_site");
@@ -44,10 +52,12 @@ const indexHtmlPath = path.join(siteDir, "index.html");
 const dataDir = path.join(projectRoot, "data");
 const dbPath = path.join(dataDir, "webhookspy.sqlite");
 
+// Ensure data directory exists
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
+// Database setup
 const db = new Database(dbPath, { create: true });
 db.run("PRAGMA journal_mode = WAL;");
 db.run(
@@ -56,7 +66,7 @@ db.run(
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL,
     password_hash TEXT
-  );`,
+  );`
 );
 // Migration: add password_hash column if it doesn't exist
 try {
@@ -77,23 +87,28 @@ db.run(
     path TEXT NOT NULL,
     ip TEXT,
     FOREIGN KEY(endpoint_id) REFERENCES endpoints(id) ON DELETE CASCADE
-  );`,
+  );`
 );
 db.run("CREATE INDEX IF NOT EXISTS idx_requests_endpoint ON requests(endpoint_id);");
 
-const EXPIRATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days of inactivity
+// Constants
+const EXPIRATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_REQUESTS_PER_ENDPOINT = 100;
 const encoder = new TextEncoder();
 
 // Rate limiting configuration
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX_ENDPOINT_CREATES = 10; // max endpoint creations per IP per minute
-const RATE_LIMIT_MAX_REQUESTS = 100; // max webhook requests per IP per minute
+const RATE_LIMIT_MAX_ENDPOINT_CREATES = 10;
+const RATE_LIMIT_MAX_REQUESTS = 100;
 
-// Rate limiting stores (IP -> { count, resetTime })
+// Rate limiting stores
 const endpointCreateLimiter = new Map<string, { count: number; resetTime: number }>();
 const requestLimiter = new Map<string, { count: number; resetTime: number }>();
+
+// SSE subscribers
+const subscribers = new Map<string, Set<Subscriber>>();
+let lastCleanup = 0;
 
 // Security headers
 const securityHeaders = {
@@ -102,10 +117,14 @@ const securityHeaders = {
   "X-XSS-Protection": "1; mode=block",
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
-  // Note: 'unsafe-eval' required for Alpine.js, 'unsafe-inline' required for Tailwind CDN
-  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
+  "Content-Security-Policy":
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'",
 };
 
+// Access key constants
+export const ACCESS_KEY_PREFIX = "whspy_";
+
+// Utility functions
 export function checkRateLimit(
   limiter: Map<string, { count: number; resetTime: number }>,
   ip: string,
@@ -149,42 +168,9 @@ export function rateLimitResponse(resetIn: number): Response {
   });
 }
 
-// Clean up old rate limit entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of endpointCreateLimiter) {
-    if (now > record.resetTime) endpointCreateLimiter.delete(ip);
-  }
-  for (const [ip, record] of requestLimiter) {
-    if (now > record.resetTime) requestLimiter.delete(ip);
-  }
-}, 60_000);
-
-type Subscriber = {
-  send: (payload: string) => void;
-  close: () => void;
-};
-
-const subscribers = new Map<string, Set<Subscriber>>();
-let lastCleanup = 0;
-
-function cleanupExpired() {
-  const now = Date.now();
-  if (now - lastCleanup < 60_000) {
-    return;
-  }
-  lastCleanup = now;
-  const isoNow = new Date(now).toISOString();
-  db.run("DELETE FROM requests WHERE endpoint_id IN (SELECT id FROM endpoints WHERE expires_at <= ?)", isoNow);
-  db.run("DELETE FROM endpoints WHERE expires_at <= ?", isoNow);
-}
-
-export function isValidEndpointId(id: string) {
+export function isValidEndpointId(id: string): boolean {
   return /^[a-f0-9]{32}$/i.test(id);
 }
-
-// Access key generation and verification
-export const ACCESS_KEY_PREFIX = "whspy_";
 
 export function generateAccessKey(): string {
   const randomBytes = crypto.getRandomValues(new Uint8Array(24));
@@ -207,16 +193,19 @@ function isEndpointProtected(endpoint: EndpointRow): boolean {
   return endpoint.password_hash !== null;
 }
 
-function generateEndpointId() {
+function generateEndpointId(): string {
   return crypto.randomUUID().replace(/-/g, "");
 }
 
 function getEndpoint(id: string): EndpointRow | undefined {
-  const stmt = db.prepare<EndpointRow>("SELECT * FROM endpoints WHERE id = ? LIMIT 1");
+  const stmt = db.prepare<EndpointRow, string>("SELECT * FROM endpoints WHERE id = ? LIMIT 1");
   return stmt.get(id) as EndpointRow | undefined;
 }
 
-async function createEndpoint(id = generateEndpointId(), secure = false): Promise<{ endpoint: EndpointRow; accessKey?: string }> {
+async function createEndpoint(
+  id = generateEndpointId(),
+  secure = false
+): Promise<{ endpoint: EndpointRow; accessKey?: string }> {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + EXPIRATION_MS);
 
@@ -233,7 +222,7 @@ async function createEndpoint(id = generateEndpointId(), secure = false): Promis
     id,
     now.toISOString(),
     expiresAt.toISOString(),
-    passwordHash,
+    passwordHash
   );
 
   return { endpoint: getEndpoint(id)!, accessKey };
@@ -249,20 +238,19 @@ async function ensureEndpoint(id?: string): Promise<EndpointRow> {
   return endpoint;
 }
 
-function refreshEndpointExpiration(id: string) {
+function refreshEndpointExpiration(id: string): void {
   const newExpiresAt = new Date(Date.now() + EXPIRATION_MS).toISOString();
   db.run("UPDATE endpoints SET expires_at = ? WHERE id = ?", newExpiresAt, id);
 }
 
-function pruneOldRequests(endpointId: string) {
-  // Delete requests beyond the max limit, keeping only the newest ones
+function pruneOldRequests(endpointId: string): void {
   db.run(
     `DELETE FROM requests WHERE endpoint_id = ? AND id NOT IN (
       SELECT id FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT ?
     )`,
     endpointId,
     endpointId,
-    MAX_REQUESTS_PER_ENDPOINT,
+    MAX_REQUESTS_PER_ENDPOINT
   );
 }
 
@@ -280,22 +268,29 @@ function mapRequest(row: RequestRecord): SerializableRequest {
   };
 }
 
-function addSubscriber(endpointId: string, subscriber: Subscriber) {
+function cleanupExpired(): void {
+  const now = Date.now();
+  if (now - lastCleanup < 60_000) return;
+  lastCleanup = now;
+  const isoNow = new Date(now).toISOString();
+  db.run("DELETE FROM requests WHERE endpoint_id IN (SELECT id FROM endpoints WHERE expires_at <= ?)", isoNow);
+  db.run("DELETE FROM endpoints WHERE expires_at <= ?", isoNow);
+}
+
+function addSubscriber(endpointId: string, subscriber: Subscriber): void {
   const set = subscribers.get(endpointId) ?? new Set<Subscriber>();
   set.add(subscriber);
   subscribers.set(endpointId, set);
 }
 
-function removeSubscriber(endpointId: string, subscriber: Subscriber) {
+function removeSubscriber(endpointId: string, subscriber: Subscriber): void {
   const set = subscribers.get(endpointId);
   if (!set) return;
   set.delete(subscriber);
-  if (!set.size) {
-    subscribers.delete(endpointId);
-  }
+  if (!set.size) subscribers.delete(endpointId);
 }
 
-function broadcast(endpointId: string, payload: unknown) {
+function broadcast(endpointId: string, payload: unknown): void {
   const set = subscribers.get(endpointId);
   if (!set?.size) return;
   const body = `data: ${JSON.stringify(payload)}\n\n`;
@@ -309,23 +304,55 @@ function broadcast(endpointId: string, payload: unknown) {
   }
 }
 
-async function serveStaticFile(relativePath: string) {
-  const filePath = path.join(siteDir, relativePath);
-  if (!filePath.startsWith(siteDir)) {
-    return new Response("Not found", { status: 404 });
+// Clean up old rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of endpointCreateLimiter) {
+    if (now > record.resetTime) endpointCreateLimiter.delete(ip);
   }
+  for (const [ip, record] of requestLimiter) {
+    if (now > record.resetTime) requestLimiter.delete(ip);
+  }
+}, 60_000);
+
+// Static file serving helpers
+async function serveStaticFile(relativePath: string): Promise<Response | null> {
+  const filePath = path.join(siteDir, relativePath);
+  if (!filePath.startsWith(siteDir)) return null;
   try {
     const file = Bun.file(filePath);
-    if (!(await file.exists())) {
-      return new Response("Not found", { status: 404 });
-    }
+    if (!(await file.exists())) return null;
     return new Response(file);
   } catch {
-    return new Response("Not found", { status: 404 });
+    return null;
   }
 }
 
-async function handleWebhookCapture(req: Request, endpointId: string, server: Server) {
+async function serveStaticPage(pagePath: string): Promise<Response | null> {
+  // Try exact path first
+  let filePath = path.join(siteDir, pagePath);
+  let file = Bun.file(filePath);
+  if (await file.exists()) {
+    return new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+
+  // Try as directory with index.html
+  const cleanPath = pagePath.replace(/\/$/, "");
+  filePath = path.join(siteDir, cleanPath, "index.html");
+  file = Bun.file(filePath);
+  if (await file.exists()) {
+    return new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+
+  return null;
+}
+
+// Handler functions
+async function handleWebhookCapture(
+  req: Request,
+  endpointId: string,
+  clientIp: string
+): Promise<Response> {
   const endpoint = await ensureEndpoint(endpointId);
   const url = new URL(req.url);
   const query: Record<string, string> = {};
@@ -334,8 +361,6 @@ async function handleWebhookCapture(req: Request, endpointId: string, server: Se
   });
 
   const headers = Object.fromEntries(req.headers);
-  const ipInfo = server.requestIP(req);
-  const ip = ipInfo ? ipInfo.address : null;
   const bodyBuffer = await req.arrayBuffer();
   let truncated = false;
   let limitedBuffer = bodyBuffer;
@@ -349,7 +374,7 @@ async function handleWebhookCapture(req: Request, endpointId: string, server: Se
 
   const insert = db.prepare(
     `INSERT INTO requests (endpoint_id, method, headers, body, truncated, query, created_at, path, ip)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const result = insert.run(
     endpoint.id,
@@ -360,10 +385,9 @@ async function handleWebhookCapture(req: Request, endpointId: string, server: Se
     Object.keys(query).length ? JSON.stringify(query) : null,
     now,
     url.pathname + url.search,
-    ip,
+    clientIp
   );
 
-  // Refresh expiration on activity and prune old requests
   refreshEndpointExpiration(endpoint.id);
   pruneOldRequests(endpoint.id);
 
@@ -377,11 +401,11 @@ async function handleWebhookCapture(req: Request, endpointId: string, server: Se
     query: Object.keys(query).length ? JSON.stringify(query) : null,
     created_at: now,
     path: url.pathname + url.search,
-    ip,
+    ip: clientIp,
   };
   broadcast(endpoint.id, { type: "request", request: mapRequest(row) });
 
-  // Check if request is from a browser (has Accept header with text/html)
+  // Check if request is from a browser
   const acceptHeader = headers["accept"] || "";
   if (acceptHeader.includes("text/html")) {
     const inspectorUrl = `/inspect/${endpoint.id}`;
@@ -438,13 +462,13 @@ async function handleWebhookCapture(req: Request, endpointId: string, server: Se
   return new Response("Captured", { status: 200 });
 }
 
-async function handleEndpointMetadata(endpointId: string) {
+async function handleEndpointMetadata(endpointId: string): Promise<Response> {
   const endpoint = getEndpoint(endpointId);
   if (!endpoint) {
     return new Response("Not found", { status: 404 });
   }
-  const stmt = db.prepare<RequestRecord>(
-    `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`,
+  const stmt = db.prepare<RequestRecord, string>(
+    `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`
   );
   const rows = stmt.all(endpointId) as RequestRecord[];
   const payload = {
@@ -456,7 +480,7 @@ async function handleEndpointMetadata(endpointId: string) {
   return Response.json(payload);
 }
 
-function handleSse(endpointId: string) {
+function handleSse(endpointId: string): Response {
   let subscriber: Subscriber | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   const stream = new ReadableStream({
@@ -473,12 +497,8 @@ function handleSse(endpointId: string) {
       }, 15_000);
     },
     cancel() {
-      if (heartbeat) {
-        clearInterval(heartbeat);
-      }
-      if (subscriber) {
-        removeSubscriber(endpointId, subscriber);
-      }
+      if (heartbeat) clearInterval(heartbeat);
+      if (subscriber) removeSubscriber(endpointId, subscriber);
     },
   });
   return new Response(stream, {
@@ -490,187 +510,428 @@ function handleSse(endpointId: string) {
   });
 }
 
-async function serveInspectorPage(endpointId: string) {
-  await ensureEndpoint(endpointId);
-  const file = Bun.file(endpointHtmlPath);
-  if (!(await file.exists())) {
-    return new Response("Inspector unavailable. Run `bun run build` first.", { status: 500 });
-  }
-  return new Response(file, {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
-async function serveHomePage() {
-  const file = Bun.file(indexHtmlPath);
-  if (!(await file.exists())) {
-    return new Response("Site not built. Run `bun run build`.", { status: 500 });
-  }
-  return new Response(file, {
-    headers: { "Content-Type": "text/html; charset=utf-8" },
-  });
-}
-
-async function serveStaticPage(pagePath: string) {
-  // Try exact path first (e.g., /og-image.html)
-  let filePath = path.join(siteDir, pagePath);
-  let file = Bun.file(filePath);
-  if (await file.exists()) {
-    return new Response(file, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  }
-
-  // Try as directory with index.html (e.g., /features/ -> /features/index.html)
-  const cleanPath = pagePath.replace(/\/$/, "");
-  filePath = path.join(siteDir, cleanPath, "index.html");
-  file = Bun.file(filePath);
-  if (await file.exists()) {
-    return new Response(file, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  }
-
-  return null;
-}
-
+// Export test helpers
 export const __test = {
   ensureEndpoint,
   handleEndpointMetadata,
-  handleWebhookCapture,
-  serveHomePage,
+  handleWebhookCapture: (req: Request, endpointId: string, server: { requestIP: (req: Request) => { address: string } | null }) => {
+    const ipInfo = server.requestIP(req);
+    return handleWebhookCapture(req, endpointId, ipInfo?.address ?? "unknown");
+  },
+  serveHomePage: async () => {
+    const file = Bun.file(indexHtmlPath);
+    if (!(await file.exists())) {
+      return new Response("Site not built. Run `bun run build`.", { status: 500 });
+    }
+    return new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  },
   serveStaticPage,
-  serveInspectorPage,
+  serveInspectorPage: async (endpointId: string) => {
+    await ensureEndpoint(endpointId);
+    const file = Bun.file(endpointHtmlPath);
+    if (!(await file.exists())) {
+      return new Response("Inspector unavailable. Run `bun run build` first.", { status: 500 });
+    }
+    return new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  },
 };
 
+// Elysia app factory
 export function createServer(options: { port?: number } = {}) {
   const port = options.port ?? Number(process.env.PORT ?? 8147);
-  return Bun.serve({
-    port,
-    hostname: "0.0.0.0",
-    fetch: async (req, bunServer) => {
-    cleanupExpired();
-    const url = new URL(req.url);
-    const pathname = url.pathname;
 
-    // Get client IP for rate limiting
-    const ipInfo = bunServer.requestIP(req);
-    const clientIp = ipInfo?.address ?? "unknown";
-
-    // Helper to return response with security headers
-    const respond = (response: Response) => addSecurityHeaders(response);
-
-    if (pathname === "/") {
-      return respond(await serveHomePage());
-    }
-
-    // Serve static assets
-    if (pathname.startsWith("/assets/") || pathname === "/favicon.ico") {
-      return respond(await serveStaticFile(pathname.slice(1)));
-    }
-
-    // Serve robots.txt and sitemap.xml
-    if (pathname === "/robots.txt" || pathname === "/sitemap.xml") {
-      return respond(await serveStaticFile(pathname.slice(1)));
-    }
-
-    // Serve inspector pages for valid endpoint IDs
-    const inspectorMatch = pathname.match(/^\/inspect\/([a-f0-9]{32})$/i);
-    if (inspectorMatch && req.method === "GET") {
-      return respond(await serveInspectorPage(inspectorMatch[1]));
-    }
-
-    // API: Create endpoint (with rate limiting)
-    if (pathname === "/api/endpoints" && req.method === "POST") {
-      const rateCheck = checkRateLimit(endpointCreateLimiter, clientIp, RATE_LIMIT_MAX_ENDPOINT_CREATES);
-      if (!rateCheck.allowed) {
-        return respond(rateLimitResponse(rateCheck.resetIn));
+  const app = new Elysia()
+    // Swagger documentation
+    .use(
+      swagger({
+        documentation: {
+          info: {
+            title: "WebhookSpy API",
+            version: "1.0.0",
+            description: "A webhook testing and inspection tool. Capture, inspect, and debug HTTP webhooks in real-time.",
+            contact: {
+              name: "WebhookSpy",
+              url: "https://webhookspy.com",
+            },
+          },
+          tags: [
+            { name: "endpoints", description: "Endpoint management operations" },
+            { name: "webhooks", description: "Webhook capture operations" },
+          ],
+          externalDocs: {
+            description: "Back to WebhookSpy.com",
+            url: "/",
+          },
+        },
+        path: "/docs",
+        exclude: ["/", "/inspect/*", "/assets/*", "/favicon.ico", "/robots.txt", "/sitemap.xml", /^\/[a-f0-9]{32}/],
+        provider: "scalar",
+        scalarConfig: {
+          customCss: `
+            .scalar-app { --scalar-background-1: #0f172a; }
+            .light-mode .scalar-app { --scalar-background-1: #f8fafc; }
+          `,
+          metaData: {
+            title: "WebhookSpy API Documentation",
+            description: "API documentation for WebhookSpy - a free webhook testing tool",
+            ogImage: "https://webhookspy.com/assets/og-image.png",
+          },
+          favicon: "/assets/favicon.svg",
+        },
+      })
+    )
+    // Run cleanup on each request
+    .onRequest(() => {
+      cleanupExpired();
+    })
+    // Add security headers to all responses
+    .onAfterHandle(({ response, set }) => {
+      // Skip security headers for SSE streams
+      if (set.headers["Content-Type"] === "text/event-stream") return response;
+      for (const [key, value] of Object.entries(securityHeaders)) {
+        set.headers[key] = value;
       }
-      const secure = url.searchParams.get("secure") === "true";
-      const { endpoint, accessKey } = await createEndpoint(undefined, secure);
-      return respond(Response.json({
-        id: endpoint.id,
-        created_at: endpoint.created_at,
-        expires_at: endpoint.expires_at,
-        protected: isEndpointProtected(endpoint),
-        accessKey, // Only present for secure endpoints, shown once
-      }));
-    }
+      return response;
+    })
+    // Derive client IP
+    .derive(({ request, server }) => ({
+      clientIp: server?.requestIP(request)?.address ?? "unknown",
+    }))
 
-    // API: Get endpoint metadata
-    const endpointMatch = pathname.match(/^\/api\/endpoints\/([a-f0-9]{32})$/i);
-    if (endpointMatch && req.method === "GET") {
-      const endpointId = endpointMatch[1];
-      const endpoint = getEndpoint(endpointId);
-      if (!endpoint) {
-        return respond(new Response("Not found", { status: 404 }));
-      }
+    // === API Routes ===
 
-      // Check access key for protected endpoints
-      if (isEndpointProtected(endpoint)) {
-        const accessKey = url.searchParams.get("key") || req.headers.get("x-access-key");
-        if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
-          return respond(Response.json({ error: "Access key required", protected: true }, { status: 401 }));
+    // Create endpoint
+    .post(
+      "/api/endpoints",
+      async ({ query, clientIp, set }) => {
+        const rateCheck = checkRateLimit(endpointCreateLimiter, clientIp, RATE_LIMIT_MAX_ENDPOINT_CREATES);
+        if (!rateCheck.allowed) {
+          set.status = 429;
+          set.headers["Retry-After"] = String(Math.ceil(rateCheck.resetIn / 1000));
+          return { error: "Too many requests. Please slow down." };
         }
+        const secure = query.secure === "true";
+        const { endpoint, accessKey } = await createEndpoint(undefined, secure);
+        return {
+          id: endpoint.id,
+          created_at: endpoint.created_at,
+          expires_at: endpoint.expires_at,
+          protected: isEndpointProtected(endpoint),
+          accessKey,
+        };
+      },
+      {
+        query: t.Object({
+          secure: t.Optional(t.String({ description: "Set to 'true' to create a protected endpoint" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Create a new webhook endpoint",
+          description: "Creates a new webhook endpoint. Optionally create a protected endpoint with an access key.",
+          responses: {
+            200: { description: "Endpoint created successfully" },
+            429: { description: "Rate limit exceeded" },
+          },
+        },
       }
+    )
 
-      return respond(await handleEndpointMetadata(endpointId));
-    }
-
-    // API: Check if endpoint is protected (no auth required)
-    const protectedCheckMatch = pathname.match(/^\/api\/endpoints\/([a-f0-9]{32})\/protected$/i);
-    if (protectedCheckMatch && req.method === "GET") {
-      const endpoint = getEndpoint(protectedCheckMatch[1]);
-      if (!endpoint) {
-        return respond(new Response("Not found", { status: 404 }));
-      }
-      return respond(Response.json({ protected: isEndpointProtected(endpoint) }));
-    }
-
-    // API: SSE stream
-    const streamMatch = pathname.match(/^\/api\/endpoints\/([a-f0-9]{32})\/stream$/i);
-    if (streamMatch && req.method === "GET") {
-      const endpointId = streamMatch[1];
-      const endpoint = getEndpoint(endpointId);
-      if (!endpoint) {
-        return respond(new Response("Not found", { status: 404 }));
-      }
-
-      // Check access key for protected endpoints
-      if (isEndpointProtected(endpoint)) {
-        const accessKey = url.searchParams.get("key") || req.headers.get("x-access-key");
-        if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
-          return respond(Response.json({ error: "Access key required", protected: true }, { status: 401 }));
+    // Get endpoint metadata
+    .get(
+      "/api/endpoints/:id",
+      async ({ params, query, headers, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
         }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+
+        if (isEndpointProtected(endpoint)) {
+          const accessKey = query.key || headers["x-access-key"];
+          if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+            set.status = 401;
+            return { error: "Access key required", protected: true };
+          }
+        }
+
+        const stmt = db.prepare<RequestRecord, string>(
+          `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`
+        );
+        const rows = stmt.all(params.id) as RequestRecord[];
+        return {
+          id: endpoint.id,
+          createdAt: endpoint.created_at,
+          expiresAt: endpoint.expires_at,
+          requests: rows.map(mapRequest),
+        };
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+        }),
+        query: t.Object({
+          key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Get endpoint metadata and captured requests",
+          description: "Retrieves endpoint details and all captured webhook requests. Protected endpoints require an access key.",
+          responses: {
+            200: { description: "Endpoint metadata with captured requests" },
+            400: { description: "Invalid endpoint ID format" },
+            401: { description: "Access key required for protected endpoint" },
+            404: { description: "Endpoint not found" },
+          },
+        },
       }
+    )
 
-      return handleSse(endpointId); // SSE doesn't get security headers (breaks streaming)
-    }
-
-    // Webhook capture for valid 32-char hex IDs (with rate limiting)
-    const potentialEndpoint = pathname.slice(1).split("/")[0];
-    if (potentialEndpoint && isValidEndpointId(potentialEndpoint)) {
-      const rateCheck = checkRateLimit(requestLimiter, clientIp, RATE_LIMIT_MAX_REQUESTS);
-      if (!rateCheck.allowed) {
-        return respond(rateLimitResponse(rateCheck.resetIn));
+    // Check if endpoint is protected
+    .get(
+      "/api/endpoints/:id/protected",
+      ({ params, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
+        }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+        return { protected: isEndpointProtected(endpoint) };
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Check if endpoint is protected",
+          description: "Returns whether the endpoint requires an access key. This endpoint does not require authentication.",
+          responses: {
+            200: { description: "Protection status" },
+            400: { description: "Invalid endpoint ID format" },
+            404: { description: "Endpoint not found" },
+          },
+        },
       }
-      return respond(await handleWebhookCapture(req, potentialEndpoint, bunServer));
-    }
+    )
 
-    // Try to serve as a static page (e.g., /features/, /og-image.html)
-    if (req.method === "GET") {
-      const staticPage = await serveStaticPage(pathname);
-      if (staticPage) {
-        return respond(staticPage);
+    // SSE stream for endpoint
+    .get(
+      "/api/endpoints/:id/stream",
+      async ({ params, query, headers, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
+        }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+
+        if (isEndpointProtected(endpoint)) {
+          const accessKey = query.key || headers["x-access-key"];
+          if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+            set.status = 401;
+            return { error: "Access key required", protected: true };
+          }
+        }
+
+        return handleSse(params.id);
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+        }),
+        query: t.Object({
+          key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Subscribe to real-time webhook updates",
+          description: "Opens a Server-Sent Events (SSE) stream for real-time webhook notifications. Protected endpoints require an access key.",
+          responses: {
+            200: { description: "SSE stream opened" },
+            400: { description: "Invalid endpoint ID format" },
+            401: { description: "Access key required for protected endpoint" },
+            404: { description: "Endpoint not found" },
+          },
+        },
       }
-    }
+    )
 
-    return respond(new Response("Not found", { status: 404 }));
-    },
-  });
+    // === Static Routes ===
+
+    // Home page
+    .get("/", async ({ set }) => {
+      const file = Bun.file(indexHtmlPath);
+      if (!(await file.exists())) {
+        set.status = 500;
+        return "Site not built. Run `bun run build`.";
+      }
+      set.headers["Content-Type"] = "text/html; charset=utf-8";
+      return file;
+    })
+
+    // Inspector page
+    .get(
+      "/inspect/:id",
+      async ({ params, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return "Invalid endpoint ID";
+        }
+        await ensureEndpoint(params.id);
+        const file = Bun.file(endpointHtmlPath);
+        if (!(await file.exists())) {
+          set.status = 500;
+          return "Inspector unavailable. Run `bun run build` first.";
+        }
+        set.headers["Content-Type"] = "text/html; charset=utf-8";
+        return file;
+      },
+      {
+        params: t.Object({
+          id: t.String({ pattern: "^[a-f0-9]{32}$" }),
+        }),
+      }
+    )
+
+    // Static assets
+    .get("/assets/*", async ({ params, set }) => {
+      const relativePath = `assets/${(params as any)["*"]}`;
+      const response = await serveStaticFile(relativePath);
+      if (!response) {
+        set.status = 404;
+        return "Not found";
+      }
+      return response;
+    })
+
+    .get("/favicon.ico", async ({ set }) => {
+      const response = await serveStaticFile("favicon.ico");
+      if (!response) {
+        set.status = 404;
+        return "Not found";
+      }
+      return response;
+    })
+
+    .get("/robots.txt", async ({ set }) => {
+      const response = await serveStaticFile("robots.txt");
+      if (!response) {
+        set.status = 404;
+        return "Not found";
+      }
+      return response;
+    })
+
+    .get("/sitemap.xml", async ({ set }) => {
+      const response = await serveStaticFile("sitemap.xml");
+      if (!response) {
+        set.status = 404;
+        return "Not found";
+      }
+      return response;
+    })
+
+    // Webhook capture - matches 32-char hex IDs with optional path
+    .all(
+      "/:id",
+      async ({ params, request, clientIp, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          // Try static page fallback
+          const url = new URL(request.url);
+          const staticPage = await serveStaticPage(url.pathname);
+          if (staticPage) {
+            set.headers["Content-Type"] = "text/html; charset=utf-8";
+            return staticPage;
+          }
+          set.status = 404;
+          return "Not found";
+        }
+
+        const rateCheck = checkRateLimit(requestLimiter, clientIp, RATE_LIMIT_MAX_REQUESTS);
+        if (!rateCheck.allowed) {
+          set.status = 429;
+          set.headers["Retry-After"] = String(Math.ceil(rateCheck.resetIn / 1000));
+          return { error: "Too many requests. Please slow down." };
+        }
+
+        return handleWebhookCapture(request, params.id, clientIp);
+      },
+      {
+        params: t.Object({
+          id: t.String(),
+        }),
+        detail: {
+          tags: ["webhooks"],
+          summary: "Capture a webhook request",
+          description: "Captures any HTTP request sent to this endpoint. Supports all HTTP methods. Returns HTML if Accept header includes text/html, otherwise returns plain text.",
+          responses: {
+            200: { description: "Request captured successfully" },
+            429: { description: "Rate limit exceeded" },
+          },
+        },
+      }
+    )
+
+    // Webhook capture with subpath
+    .all(
+      "/:id/*",
+      async ({ params, request, clientIp, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 404;
+          return "Not found";
+        }
+
+        const rateCheck = checkRateLimit(requestLimiter, clientIp, RATE_LIMIT_MAX_REQUESTS);
+        if (!rateCheck.allowed) {
+          set.status = 429;
+          set.headers["Retry-After"] = String(Math.ceil(rateCheck.resetIn / 1000));
+          return { error: "Too many requests. Please slow down." };
+        }
+
+        return handleWebhookCapture(request, params.id, clientIp);
+      },
+      {
+        params: t.Object({
+          id: t.String(),
+          "*": t.String(),
+        }),
+        detail: {
+          tags: ["webhooks"],
+          summary: "Capture a webhook request with subpath",
+          description: "Captures any HTTP request sent to this endpoint with additional path segments. The full path is recorded.",
+          responses: {
+            200: { description: "Request captured successfully" },
+            429: { description: "Rate limit exceeded" },
+          },
+        },
+      }
+    );
+
+  return app.listen(port);
 }
 
 if (import.meta.main) {
   const server = createServer();
-  console.log(`WebhookSpy listening on http://0.0.0.0:${server.port}`);
+  console.log(`WebhookSpy listening on http://0.0.0.0:${server.server?.port}`);
+  console.log(`Swagger docs available at http://localhost:${server.server?.port}/docs`);
 }
