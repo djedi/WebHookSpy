@@ -1,0 +1,66 @@
+name: "\U0001F41E Bug report"
+description: Report a reproducible problem or regression.
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to improve WebhookSpy! Please fill out every required section so we can reproduce the issue quickly.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the bug.
+      placeholder: e.g. Secure inspector shows 401 even with correct key
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, including any curl/bun commands or UI actions.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you thought would happen.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened (include logs/SSE payloads if relevant).
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: WebhookSpy version
+      description: Git commit, Docker tag, or release you are running.
+      placeholder: e.g. commit 3d2c9dd or xhenxhe/webhookspy:latest
+    validations:
+      required: true
+  - type: input
+    id: bun
+    attributes:
+      label: Bun version
+      description: Output of `bun --version` (if running locally).
+  - type: input
+    id: os
+    attributes:
+      label: OS / platform
+      placeholder: e.g. macOS 14.4 arm64, Ubuntu 22.04 x86_64, Docker
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Screenshots, logs, or sample payloads that help explain the issue.

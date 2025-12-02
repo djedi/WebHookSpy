@@ -1,0 +1,42 @@
+name: "\U0001F680 Feature request"
+description: Suggest an enhancement or new capability.
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas big or small are welcome! Help us understand the problem you are trying to solve so we can validate the request.
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Short title for the feature.
+      placeholder: e.g. Allow naming endpoints for easier identification
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What pain point does this feature solve? Be specific.
+      placeholder: When I'm viewing multiple endpoints in the inspector...
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe how you'd like it to work. Mockups or pseudo code welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you tried other tools or workarounds?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Screenshots, references, or related issues/PRs.
