@@ -92,6 +92,7 @@ db.run(
 db.run("CREATE INDEX IF NOT EXISTS idx_requests_endpoint ON requests(endpoint_id);");
 
 // Constants
+const APP_VERSION = process.env.APP_VERSION ?? "dev";
 const EXPIRATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 const MAX_BODY_BYTES = 512 * 1024;
 const MAX_REQUESTS_PER_ENDPOINT = 100;
@@ -641,6 +642,18 @@ export function createApp() {
     }))
 
     // === API Routes ===
+
+    // Version endpoint
+    .get("/api/version", () => ({ version: APP_VERSION }), {
+      detail: {
+        tags: ["system"],
+        summary: "Get application version",
+        description: "Returns the current application version.",
+        responses: {
+          200: { description: "Version information" },
+        },
+      },
+    })
 
     // Create endpoint
     .post(

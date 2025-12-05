@@ -19,6 +19,10 @@ RUN bun run build
 # Production stage
 FROM oven/bun:1
 
+# Accept version from build args
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
+
 WORKDIR /app
 
 # Copy package files and install production dependencies
