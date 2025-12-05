@@ -304,6 +304,19 @@ function broadcast(endpointId: string, payload: unknown): void {
   }
 }
 
+function closeSubscribers(endpointId: string): void {
+  const set = subscribers.get(endpointId);
+  if (!set?.size) return;
+  for (const subscriber of set) {
+    try {
+      subscriber.close();
+    } catch {
+      // Ignore closing errors
+    }
+  }
+  subscribers.delete(endpointId);
+}
+
 // Clean up old rate limit entries periodically
 setInterval(() => {
   const now = Date.now();
@@ -483,22 +496,44 @@ async function handleEndpointMetadata(endpointId: string): Promise<Response> {
 function handleSse(endpointId: string): Response {
   let subscriber: Subscriber | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  const cleanup = () => {
+    if (heartbeat) {
+      clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
+    if (subscriber) {
+      removeSubscriber(endpointId, subscriber);
+      subscriber = undefined;
+    }
+  };
   const stream = new ReadableStream({
     start(controller) {
-      const send = (chunk: string) => controller.enqueue(encoder.encode(chunk));
+      const send = (chunk: string) => {
+        try {
+          controller.enqueue(encoder.encode(chunk));
+        } catch {
+          cleanup();
+        }
+      };
       subscriber = {
         send,
-        close: () => controller.close(),
+        close: () => {
+          cleanup();
+          controller.close();
+        },
       };
       addSubscriber(endpointId, subscriber);
       send(`event: ready\ndata: {}\n\n`);
       heartbeat = setInterval(() => {
-        send(":keep-alive\n\n");
+        try {
+          send(":keep-alive\n\n");
+        } catch {
+          cleanup();
+        }
       }, 15_000);
     },
     cancel() {
-      if (heartbeat) clearInterval(heartbeat);
-      if (subscriber) removeSubscriber(endpointId, subscriber);
+      cleanup();
     },
   });
   return new Response(stream, {
@@ -700,6 +735,161 @@ export function createApp() {
       }
     )
 
+    // Get requests with filtering (for testing/integration)
+    .get(
+      "/api/endpoints/:id/requests",
+      async ({ params, query, headers, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
+        }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+
+        if (isEndpointProtected(endpoint)) {
+          const accessKey = query.key || headers["x-access-key"];
+          if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+            set.status = 401;
+            return { error: "Access key required", protected: true };
+          }
+        }
+
+        const stmt = db.prepare<RequestRecord, string>(
+          `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`
+        );
+        const rows = stmt.all(params.id) as RequestRecord[];
+        let requests = rows.map(mapRequest);
+
+        // Apply filters
+        if (query.method) {
+          requests = requests.filter((r) => r.method.toUpperCase() === query.method!.toUpperCase());
+        }
+        if (query.path) {
+          requests = requests.filter((r) => r.path.includes(query.path!));
+        }
+
+        // Body text search (substring match anywhere in body)
+        if (query.body) {
+          requests = requests.filter((r) => r.body?.includes(query.body!) ?? false);
+        }
+
+        // Body JSON key filter - check if a key exists in parsed JSON body
+        if (query.body_key) {
+          requests = requests.filter((r) => {
+            if (!r.body) return false;
+            try {
+              const parsed = JSON.parse(r.body);
+              return query.body_key! in parsed;
+            } catch {
+              return false;
+            }
+          });
+        }
+
+        // Body JSON value filter - check if a key has a specific value (format: "key:value")
+        if (query.body_value) {
+          const colonIdx = query.body_value.indexOf(":");
+          if (colonIdx > 0) {
+            const key = query.body_value.slice(0, colonIdx);
+            const value = query.body_value.slice(colonIdx + 1);
+            requests = requests.filter((r) => {
+              if (!r.body) return false;
+              try {
+                const parsed = JSON.parse(r.body);
+                return String(parsed[key]) === value;
+              } catch {
+                return false;
+              }
+            });
+          }
+        }
+
+        // Query param key filter - check if query param exists
+        if (query.query_key) {
+          requests = requests.filter((r) => query.query_key! in r.query);
+        }
+
+        // Query param value filter - check if query param has value (format: "key:value")
+        if (query.query_value) {
+          const colonIdx = query.query_value.indexOf(":");
+          if (colonIdx > 0) {
+            const key = query.query_value.slice(0, colonIdx);
+            const value = query.query_value.slice(colonIdx + 1);
+            requests = requests.filter((r) => r.query[key] === value);
+          }
+        }
+
+        // Header key filter - check if header exists (case-insensitive)
+        if (query.header_key) {
+          requests = requests.filter((r) => {
+            return Object.keys(r.headers).some(
+              (k) => k.toLowerCase() === query.header_key!.toLowerCase()
+            );
+          });
+        }
+
+        // Header value filter - check header has value (format: "name:value", case-insensitive name)
+        if (query.header_value) {
+          const colonIdx = query.header_value.indexOf(":");
+          if (colonIdx > 0) {
+            const headerName = query.header_value.slice(0, colonIdx);
+            const headerValue = query.header_value.slice(colonIdx + 1);
+            requests = requests.filter((r) => {
+              const headerKey = Object.keys(r.headers).find(
+                (k) => k.toLowerCase() === headerName.toLowerCase()
+              );
+              if (!headerKey) return false;
+              return r.headers[headerKey].includes(headerValue);
+            });
+          }
+        }
+
+        if (query.limit) {
+          const limit = parseInt(query.limit, 10);
+          if (!isNaN(limit) && limit > 0) {
+            requests = requests.slice(0, limit);
+          }
+        }
+
+        return requests;
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+        }),
+        query: t.Object({
+          key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
+          method: t.Optional(t.String({ description: "Filter by HTTP method (GET, POST, etc.)" })),
+          path: t.Optional(t.String({ description: "Filter by path (substring match)" })),
+          body: t.Optional(t.String({ description: "Filter by body text (substring match)" })),
+          body_key: t.Optional(t.String({ description: "Filter by JSON body key existence" })),
+          body_value: t.Optional(t.String({ description: "Filter by JSON body key:value (e.g., 'user_id:123')" })),
+          query_key: t.Optional(t.String({ description: "Filter by query param key existence" })),
+          query_value: t.Optional(t.String({ description: "Filter by query param key:value (e.g., 'rand:24052')" })),
+          header_key: t.Optional(t.String({ description: "Filter by header key existence (case-insensitive)" })),
+          header_value: t.Optional(t.String({ description: "Filter by header name:value (e.g., 'content-type:application/json')" })),
+          limit: t.Optional(t.String({ description: "Limit number of results" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Get captured requests with filtering",
+          description: "Returns captured webhook requests as JSON array. Supports filtering by method, path, body text/key/value, and header key/value. Useful for testing and CI/CD integration.",
+          responses: {
+            200: { description: "Array of captured requests" },
+            400: { description: "Invalid endpoint ID format" },
+            401: { description: "Access key required for protected endpoint" },
+            404: { description: "Endpoint not found" },
+          },
+        },
+      }
+    )
+
     // Check if endpoint is protected
     .get(
       "/api/endpoints/:id/protected",
@@ -777,6 +967,172 @@ export function createApp() {
             200: { description: "SSE stream opened" },
             400: { description: "Invalid endpoint ID format" },
             401: { description: "Access key required for protected endpoint" },
+            404: { description: "Endpoint not found" },
+          },
+        },
+      }
+    )
+
+    // Delete a single request
+    .delete(
+      "/api/endpoints/:id/requests/:requestId",
+      async ({ params, query, headers, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
+        }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+
+        if (isEndpointProtected(endpoint)) {
+          const accessKey = query.key || headers["x-access-key"];
+          if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+            set.status = 401;
+            return { error: "Access key required", protected: true };
+          }
+        }
+
+        const requestId = Number(params.requestId);
+        const selectStmt = db.prepare("SELECT * FROM requests WHERE endpoint_id = ? AND id = ? LIMIT 1");
+        const requestRow = selectStmt.get(endpoint.id, requestId) as RequestRecord | undefined;
+        if (!requestRow) {
+          set.status = 404;
+          return { error: "Request not found" };
+        }
+
+        db.run("DELETE FROM requests WHERE endpoint_id = ? AND id = ?", endpoint.id, requestId);
+        broadcast(endpoint.id, { type: "request_deleted", requestId });
+        return { success: true };
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+          requestId: t.String({
+            pattern: "^[0-9]+$",
+            description: "Numeric request identifier",
+          }),
+        }),
+        query: t.Object({
+          key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Delete a single captured request",
+          description: "Removes a captured webhook request. Protected endpoints require an access key.",
+          responses: {
+            200: { description: "Request deleted" },
+            400: { description: "Invalid endpoint ID" },
+            401: { description: "Access key required" },
+            404: { description: "Endpoint or request not found" },
+          },
+        },
+      }
+    )
+
+    // Delete all requests for an endpoint
+    .delete(
+      "/api/endpoints/:id/requests",
+      async ({ params, query, headers, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
+        }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+
+        if (isEndpointProtected(endpoint)) {
+          const accessKey = query.key || headers["x-access-key"];
+          if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+            set.status = 401;
+            return { error: "Access key required", protected: true };
+          }
+        }
+
+        const result = db.prepare("DELETE FROM requests WHERE endpoint_id = ?").run(endpoint.id);
+        const deleted = Number(result.changes ?? 0);
+        if (deleted > 0) {
+          broadcast(endpoint.id, { type: "requests_cleared" });
+        }
+        return { success: true, deleted };
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+        }),
+        query: t.Object({
+          key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Clear all captured requests",
+          description: "Deletes all stored webhook requests for the endpoint. Protected endpoints require an access key.",
+          responses: {
+            200: { description: "Requests cleared" },
+            400: { description: "Invalid endpoint ID" },
+            401: { description: "Access key required" },
+            404: { description: "Endpoint not found" },
+          },
+        },
+      }
+    )
+
+    // Delete an endpoint and all of its data
+    .delete(
+      "/api/endpoints/:id",
+      async ({ params, query, headers, set }) => {
+        if (!isValidEndpointId(params.id)) {
+          set.status = 400;
+          return { error: "Invalid endpoint ID" };
+        }
+        const endpoint = getEndpoint(params.id);
+        if (!endpoint) {
+          set.status = 404;
+          return { error: "Endpoint not found" };
+        }
+
+        if (isEndpointProtected(endpoint)) {
+          const accessKey = query.key || headers["x-access-key"];
+          if (!accessKey || !(await verifyAccessKey(accessKey, endpoint.password_hash!))) {
+            set.status = 401;
+            return { error: "Access key required", protected: true };
+          }
+        }
+
+        db.run("DELETE FROM endpoints WHERE id = ?", endpoint.id);
+        broadcast(endpoint.id, { type: "endpoint_deleted" });
+        closeSubscribers(endpoint.id);
+        return { success: true };
+      },
+      {
+        params: t.Object({
+          id: t.String({
+            pattern: "^[a-f0-9]{32}$",
+            description: "32-character hex endpoint ID",
+          }),
+        }),
+        query: t.Object({
+          key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
+        }),
+        detail: {
+          tags: ["endpoints"],
+          summary: "Delete an endpoint",
+          description: "Deletes the endpoint and all associated requests immediately. Protected endpoints require an access key.",
+          responses: {
+            200: { description: "Endpoint deleted" },
+            400: { description: "Invalid endpoint ID" },
+            401: { description: "Access key required" },
             404: { description: "Endpoint not found" },
           },
         },

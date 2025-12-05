@@ -12,6 +12,7 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, Elysia, SQLite, Al
 - **Permanent URLs** – Your webhook URL never expires. Data clears after 7 days of inactivity, but the same URL keeps working automatically.
 - **Live streaming inspector** – Requests appear instantly via SSE with a sidebar list and detailed headers/body view.
 - **REST API with OpenAPI docs** – Full programmatic access via REST API with interactive documentation at `/docs`.
+- **Request filtering API** – Query captured requests by method, path, body content, or headers for easy test assertions.
 - **Smart retention** – Keeps the last 100 requests per endpoint. Older requests are automatically pruned.
 - **Theme aware UI** – Supports automatic light/dark detection plus a manual theme switcher.
 - **Secure endpoints** – Optionally protect endpoints with access keys for testing sensitive webhooks.
@@ -92,6 +93,55 @@ Once the server starts, visit `http://localhost:8147` to generate endpoints. The
 
 For secure endpoints, copy and save the access key shown after creation—it's only displayed once. Share the key with teammates via URL (`/inspect/{id}?key=whspy_...`) or they can enter it manually.
 
+### Querying captured requests
+
+Use the `/api/endpoints/{id}/requests` endpoint to programmatically retrieve and filter captured requests—useful for test assertions and CI/CD pipelines.
+
+```bash
+# Get all captured requests
+curl "http://localhost:8147/api/endpoints/{id}/requests"
+
+# Filter by HTTP method
+curl "http://localhost:8147/api/endpoints/{id}/requests?method=POST"
+
+# Filter by body text (substring match)
+curl "http://localhost:8147/api/endpoints/{id}/requests?body=order_id"
+
+# Filter by JSON body key existence
+curl "http://localhost:8147/api/endpoints/{id}/requests?body_key=user_id"
+
+# Filter by JSON body key:value
+curl "http://localhost:8147/api/endpoints/{id}/requests?body_value=status:completed"
+
+# Filter by header existence
+curl "http://localhost:8147/api/endpoints/{id}/requests?header_key=x-signature"
+
+# Filter by header name:value
+curl "http://localhost:8147/api/endpoints/{id}/requests?header_value=content-type:application/json"
+
+# Filter by query param existence
+curl "http://localhost:8147/api/endpoints/{id}/requests?query_key=rand"
+
+# Filter by query param key:value
+curl "http://localhost:8147/api/endpoints/{id}/requests?query_value=rand:24052"
+
+# Combine filters and limit results
+curl "http://localhost:8147/api/endpoints/{id}/requests?method=POST&body_key=event&limit=1"
+```
+
+| Parameter      | Description                                           |
+| -------------- | ----------------------------------------------------- |
+| `method`       | Filter by HTTP method (GET, POST, etc.)               |
+| `path`         | Filter by request path (substring match)              |
+| `body`         | Filter by body text (substring match)                 |
+| `body_key`     | Filter by JSON body key existence                     |
+| `body_value`   | Filter by JSON body key:value (format: `key:value`)   |
+| `query_key`    | Filter by query param key existence                   |
+| `query_value`  | Filter by query param key:value (format: `key:value`) |
+| `header_key`   | Filter by header existence (case-insensitive)         |
+| `header_value` | Filter by header name:value (format: `name:value`)    |
+| `limit`        | Limit number of results returned                      |
+
 ### Running in production mode
 
 ```bash
@@ -129,12 +179,12 @@ services:
     image: xhenxhe/webhookspy:latest
     container_name: webhookspy
     ports:
-      - "8147:8147"
+      - '8147:8147'
     volumes:
       - webhookspy-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8147/"]
+      test: ['CMD', 'curl', '-f', 'http://localhost:8147/']
       interval: 30s
       timeout: 3s
       retries: 3
@@ -166,8 +216,8 @@ services:
     image: caddy:latest
     container_name: caddy
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy-data:/data
@@ -200,14 +250,14 @@ webhooks.yourdomain.com {
 3. Paste this in the Web editor:
 
 ```yaml
-version: "3.8"
+version: '3.8'
 
 services:
   webhookspy:
     image: xhenxhe/webhookspy:latest
     container_name: webhookspy
     ports:
-      - "8147:8147"
+      - '8147:8147'
     volumes:
       - webhookspy-data:/app/data
     restart: unless-stopped

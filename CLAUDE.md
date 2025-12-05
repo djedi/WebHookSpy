@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Development Commands
 
-```bash
+````bash
 bun install          # Install dependencies
 bun run build        # Build 11ty static site into _site/
 bun run dev          # Start server with watch mode (auto-restarts on changes)
@@ -20,10 +20,11 @@ bun run start        # Start server without watching
 ./test --changed       # Only run tests affected by git changes (falls back to full suite if none detected)
 ./test --list          # List discovered test files without running them
 ./test --report        # Run with coverage, generate lcov + interactive HTML (requires `genhtml` from lcov)
-```
+````
 
 When using `--report`, the script runs `bun test --coverage --coverage-reporter=lcov` and, if `genhtml` is available, emits an interactive report under `coverage/html/index.html` and opens it automatically.
-```
+
+````
 
 ### Docker Development
 
@@ -38,7 +39,7 @@ When using `--report`, the script runs `bun test --coverage --coverage-reporter=
 ./dev status         # Show container status and resource usage
 ./dev clean          # Remove containers, volumes, and images
 ./dev --help         # Show all available commands
-```
+````
 
 The server runs on port 8147 by default (configurable via PORT env var).
 
@@ -47,7 +48,9 @@ The server runs on port 8147 by default (configurable via PORT env var).
 WebhookSpy is a webhook testing tool with two main components:
 
 ### Backend (`src/server.ts`)
+
 An Elysia server (running on Bun) that handles:
+
 - **Webhook capture**: Any request to `/{32-char-hex-id}` is captured and stored
 - **SSE streaming**: Real-time updates via `/api/endpoints/{id}/stream`
 - **REST API**: `POST /api/endpoints` (create), `GET /api/endpoints/{id}` (metadata)
@@ -55,12 +58,15 @@ An Elysia server (running on Bun) that handles:
 - **Static serving**: Serves 11ty-built files from `_site/`
 
 SQLite database (`data/webhookspy.sqlite`) stores endpoints and requests. Key constraints:
+
 - Endpoints expire after 7 days of inactivity (auto-recreated on next request)
 - Max 100 requests per endpoint (oldest pruned automatically)
 - Request bodies truncated at 512KB
 
 ### Frontend (`src/site/`)
+
 11ty (Eleventy) static site with Nunjucks templates:
+
 - `_includes/layout.njk` - Base layout with Tailwind config and Alpine.js theme switcher
 - `index.njk` - Homepage with endpoint creation
 - `endpoint.njk` - Inspector page with SSE-powered live request viewer
@@ -69,20 +75,39 @@ Frontend uses Alpine.js for reactivity and Tailwind CSS (via CDN) for styling.
 
 ## API Routes
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/{id}` | ANY | Capture webhook request |
-| `/inspect/{id}` | GET | Serve inspector page |
-| `/api/endpoints` | POST | Create new endpoint (add `?secure=true` for protected) |
-| `/api/endpoints/{id}` | GET | Get endpoint metadata + requests |
-| `/api/endpoints/{id}/protected` | GET | Check if endpoint requires access key |
-| `/api/endpoints/{id}/stream` | GET | SSE stream for live updates |
-| `/docs` | GET | Interactive OpenAPI documentation (Scalar UI) |
-| `/docs/json` | GET | OpenAPI 3.0 JSON specification |
+| Route                           | Method | Description                                            |
+| ------------------------------- | ------ | ------------------------------------------------------ |
+| `/{id}`                         | ANY    | Capture webhook request                                |
+| `/inspect/{id}`                 | GET    | Serve inspector page                                   |
+| `/api/endpoints`                | POST   | Create new endpoint (add `?secure=true` for protected) |
+| `/api/endpoints/{id}`           | GET    | Get endpoint metadata + requests                       |
+| `/api/endpoints/{id}/requests`  | GET    | Get requests with filtering (see filter params below)  |
+| `/api/endpoints/{id}/protected` | GET    | Check if endpoint requires access key                  |
+| `/api/endpoints/{id}/stream`    | GET    | SSE stream for live updates                            |
+| `/docs`                         | GET    | Interactive OpenAPI documentation (Scalar UI)          |
+| `/docs/json`                    | GET    | OpenAPI 3.0 JSON specification                         |
+
+### Request Filter Parameters
+
+The `/api/endpoints/{id}/requests` endpoint supports these query parameters:
+
+| Parameter      | Description                       | Example                                       |
+| -------------- | --------------------------------- | --------------------------------------------- |
+| `method`       | Filter by HTTP method             | `?method=POST`                                |
+| `path`         | Filter by path (substring)        | `?path=/webhook`                              |
+| `body`         | Filter by body text (substring)   | `?body=order_id`                              |
+| `body_key`     | Filter by JSON body key existence | `?body_key=user_id`                           |
+| `body_value`   | Filter by JSON key:value          | `?body_value=status:completed`                |
+| `query_key`    | Filter by query param existence   | `?query_key=rand`                             |
+| `query_value`  | Filter by query param key:value   | `?query_value=rand:24052`                     |
+| `header_key`   | Filter by header existence        | `?header_key=x-signature`                     |
+| `header_value` | Filter by header name:value       | `?header_value=content-type:application/json` |
+| `limit`        | Limit results                     | `?limit=1`                                    |
 
 ## Security Features
 
 ### Secure Endpoints
+
 - Create protected endpoints with `POST /api/endpoints?secure=true`
 - Access keys generated server-side with `whspy_` prefix (24 random bytes, base64url encoded)
 - Keys hashed using `Bun.password.hash()` (bcrypt) before storage
@@ -90,12 +115,15 @@ Frontend uses Alpine.js for reactivity and Tailwind CSS (via CDN) for styling.
 - Keys can be shared via URL (`/inspect/{id}?key=whspy_...`) or entered manually
 
 ### Rate Limiting
+
 - Endpoint creation: 10 per IP per minute
 - Webhook requests: 100 per IP per minute
 - Returns 429 with `Retry-After` header when exceeded
 
 ### Security Headers
+
 All responses include:
+
 - `Content-Security-Policy` (script-src, style-src, etc.)
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
@@ -103,6 +131,7 @@ All responses include:
 - `Referrer-Policy: strict-origin-when-cross-origin`
 
 ### XSS Protection
+
 - JSON syntax highlighter escapes HTML before rendering
 - Warning banner on public endpoints about sensitive data
 

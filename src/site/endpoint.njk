@@ -122,6 +122,17 @@ noindex: true
             </svg>
             New Endpoint
           </a>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-medium text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            @click="deleteEndpoint"
+            :disabled="deletingEndpoint || endpointDeleted"
+          >
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.108 1.022.169m-1.022-.17L18.16 19.673A2.25 2.25 0 0115.916 21H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .566c.34-.061.68-.117 1.022-.169m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+            </svg>
+            <span x-text="deletingEndpoint ? 'Deleting...' : 'Delete Endpoint'"></span>
+          </button>
         </div>
       </div>
 
@@ -158,13 +169,22 @@ noindex: true
     <!-- Sidebar - Request List -->
     <aside class="glass bg-white/80 dark:bg-slate-900/80 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-lg overflow-hidden">
       <div class="p-4 border-b border-slate-200/50 dark:border-slate-700/50">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-2">
           <h2 class="font-semibold text-slate-900 dark:text-white">Incoming Requests</h2>
-          <span
-            class="text-xs font-medium px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-            x-show="requests.length"
-            x-text="requests.length + ' / 100'"
-          ></span>
+          <div class="flex items-center gap-2" x-show="requests.length">
+            <span
+              class="text-xs font-medium px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
+              x-text="requests.length + ' / 100'"
+            ></span>
+            <button
+              type="button"
+              class="text-xs font-semibold px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              @click="clearRequests"
+              :disabled="clearingRequests || endpointDeleted"
+            >
+              <span x-text="clearingRequests ? 'Clearing...' : 'Clear All'"></span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -276,11 +296,24 @@ noindex: true
                 </div>
                 <p class="font-mono text-lg break-all text-slate-900 dark:text-white" x-text="selectedRequest.path"></p>
               </div>
-              <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800">
-                <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
-                </svg>
-                <span class="font-mono text-sm text-slate-700 dark:text-slate-300" x-text="selectedRequest.ip || 'Unknown'"></span>
+              <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800">
+                  <svg class="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
+                  </svg>
+                  <span class="font-mono text-sm text-slate-700 dark:text-slate-300" x-text="selectedRequest.ip || 'Unknown'"></span>
+                </div>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-rose-200 text-rose-700 dark:text-rose-300 dark:border-rose-900/50 hover:bg-rose-50 dark:hover:bg-rose-900/20 text-sm font-semibold transition disabled:opacity-60 disabled:cursor-not-allowed"
+                  @click="deleteRequest(selectedRequest.id)"
+                  :disabled="deletingRequestId === selectedRequest.id || endpointDeleted"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 6.75V19.5a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 19.5V6.75m18 0V5.25A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25V6.75m18 0H3" />
+                  </svg>
+                  <span x-text="deletingRequestId === selectedRequest.id ? 'Deleting...' : 'Delete Request'"></span>
+                </button>
               </div>
             </div>
           </div>
@@ -420,6 +453,13 @@ noindex: true
       needsAuth: false,
       accessKeyInput: "",
       accessKey: urlKey || storedKey || "",
+      clearingRequests: false,
+      deletingRequestId: null,
+      deletingEndpoint: false,
+      endpointDeleted: false,
+      authQueryString() {
+        return this.accessKey ? `?key=${encodeURIComponent(this.accessKey)}` : '';
+      },
       async init() {
         if (!this.endpointId) {
           this.error = "Missing endpoint id.";
@@ -485,8 +525,8 @@ noindex: true
       },
       async loadInitial() {
         try {
-          const keyParam = this.accessKey ? `?key=${encodeURIComponent(this.accessKey)}` : '';
-          const response = await fetch(`/api/endpoints/${this.endpointId}${keyParam}`);
+          this.endpointDeleted = false;
+          const response = await fetch(`/api/endpoints/${this.endpointId}${this.authQueryString()}`);
           if (!response.ok) {
             throw new Error("Endpoint not found or expired.");
           }
@@ -500,12 +540,13 @@ noindex: true
         }
       },
       subscribe() {
+        if (this.endpointDeleted) return;
         if (this.stream) this.stream.close();
-        const keyParam = this.accessKey ? `?key=${encodeURIComponent(this.accessKey)}` : '';
-        this.stream = new EventSource(`/api/endpoints/${this.endpointId}/stream${keyParam}`);
+        this.stream = new EventSource(`/api/endpoints/${this.endpointId}/stream${this.authQueryString()}`);
         this.stream.onmessage = (event) => {
           const payload = JSON.parse(event.data);
           if (payload.type === "request") {
+            if (!payload.request) return;
             const selectedId = this.selectedRequest?.id;
             this.requests = [payload.request, ...this.requests].slice(0, 100);
             if (!selectedId || selectedId === payload.request.id) {
@@ -513,9 +554,28 @@ noindex: true
             } else {
               this.selectedRequest = this.requests.find((request) => request.id === selectedId) || this.requests[0] || null;
             }
+          } else if (payload.type === "request_deleted") {
+            if (payload.requestId == null) return;
+            this.requests = this.requests.filter((request) => request.id !== payload.requestId);
+            if (this.selectedRequest?.id === payload.requestId) {
+              this.selectedRequest = this.requests[0] || null;
+            }
+          } else if (payload.type === "requests_cleared") {
+            this.requests = [];
+            this.selectedRequest = null;
+          } else if (payload.type === "endpoint_deleted") {
+            this.endpointDeleted = true;
+            this.requests = [];
+            this.selectedRequest = null;
+            this.error = "This endpoint has been deleted.";
+            if (this.stream) {
+              this.stream.close();
+              this.stream = null;
+            }
           }
         };
         this.stream.onerror = () => {
+          if (this.endpointDeleted) return;
           setTimeout(() => this.subscribe(), 1500);
         };
       },
@@ -578,6 +638,72 @@ noindex: true
       },
       selectRequest(request) {
         this.selectedRequest = request;
+      },
+      async deleteRequest(requestId) {
+        if (!requestId || this.endpointDeleted) return;
+        if (!window.confirm("Delete this request? This cannot be undone.")) return;
+        this.deletingRequestId = requestId;
+        this.error = "";
+        try {
+          const response = await fetch(
+            `/api/endpoints/${this.endpointId}/requests/${requestId}${this.authQueryString()}`,
+            { method: "DELETE" }
+          );
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.error || "Unable to delete request.");
+          }
+          this.requests = this.requests.filter((entry) => entry.id !== requestId);
+          if (this.selectedRequest?.id === requestId) {
+            this.selectedRequest = this.requests[0] || null;
+          }
+        } catch (error) {
+          this.error = error.message || "Unable to delete request.";
+        } finally {
+          this.deletingRequestId = null;
+        }
+      },
+      async clearRequests() {
+        if (!this.requests.length || this.endpointDeleted) return;
+        if (!window.confirm("Clear all captured requests for this endpoint?")) return;
+        this.clearingRequests = true;
+        this.error = "";
+        try {
+          const response = await fetch(
+            `/api/endpoints/${this.endpointId}/requests${this.authQueryString()}`,
+            { method: "DELETE" }
+          );
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.error || "Unable to clear requests.");
+          }
+          this.requests = [];
+          this.selectedRequest = null;
+        } catch (error) {
+          this.error = error.message || "Unable to clear requests.";
+        } finally {
+          this.clearingRequests = false;
+        }
+      },
+      async deleteEndpoint() {
+        if (this.endpointDeleted) return;
+        if (!window.confirm("Delete this endpoint and all captured requests? This cannot be undone.")) return;
+        this.deletingEndpoint = true;
+        this.error = "";
+        try {
+          const response = await fetch(`/api/endpoints/${this.endpointId}${this.authQueryString()}`, {
+            method: "DELETE",
+          });
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload.error || "Unable to delete endpoint.");
+          }
+          this.endpointDeleted = true;
+          window.location.href = "/";
+        } catch (error) {
+          this.error = error.message || "Unable to delete endpoint.";
+          this.deletingEndpoint = false;
+        }
       },
       async copyUrl(url) {
         const copied = window.safeCopyToClipboard ? await window.safeCopyToClipboard(url) : false;

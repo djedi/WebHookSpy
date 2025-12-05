@@ -220,6 +220,70 @@ describe("API routes via createServer", () => {
     const missing = await appRequest("/api/endpoints/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/stream");
     expect(missing.status).toBe(404);
   });
+
+  it("deletes a single captured request", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    await appRequest(`/${endpoint.id}`, { method: "POST", body: "test" });
+    const metadataBefore = await __test.handleEndpointMetadata(endpoint.id);
+    const beforePayload = await metadataBefore.json();
+    expect(beforePayload.requests.length).toBe(1);
+    const requestId = beforePayload.requests[0].id;
+
+    const deleteResponse = await appRequest(`/api/endpoints/${endpoint.id}/requests/${requestId}`, { method: "DELETE" });
+    expect(deleteResponse.status).toBe(200);
+
+    const metadataAfter = await __test.handleEndpointMetadata(endpoint.id);
+    const afterPayload = await metadataAfter.json();
+    expect(afterPayload.requests.length).toBe(0);
+  });
+
+  it("clears all requests for an endpoint", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    await appRequest(`/${endpoint.id}`, { method: "POST", body: "first" });
+    await appRequest(`/${endpoint.id}`, { method: "POST", body: "second" });
+
+    const clearResponse = await appRequest(`/api/endpoints/${endpoint.id}/requests`, { method: "DELETE" });
+    expect(clearResponse.status).toBe(200);
+    const payload = await clearResponse.json();
+    expect(payload.deleted).toBeGreaterThanOrEqual(2);
+
+    const metadata = await __test.handleEndpointMetadata(endpoint.id);
+    const metadataPayload = await metadata.json();
+    expect(metadataPayload.requests.length).toBe(0);
+  });
+
+  it("deletes an endpoint and cascades requests", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    await appRequest(`/${endpoint.id}`, { method: "POST", body: "payload" });
+
+    const deleteResponse = await appRequest(`/api/endpoints/${endpoint.id}`, { method: "DELETE" });
+    expect(deleteResponse.status).toBe(200);
+
+    const metadata = await __test.handleEndpointMetadata(endpoint.id);
+    expect(metadata.status).toBe(404);
+  });
+
+  it("requires access keys for destructive actions on protected endpoints", async () => {
+    const { endpoint, accessKey } = await __test.createEndpoint({ secure: true });
+    await appRequest(`/${endpoint.id}`, { method: "POST", body: "secret" });
+    const metadataBefore = await __test.handleEndpointMetadata(endpoint.id);
+    const beforePayload = await metadataBefore.json();
+    const requestId = beforePayload.requests[0].id;
+
+    const missingKey = await appRequest(`/api/endpoints/${endpoint.id}/requests/${requestId}`, { method: "DELETE" });
+    expect(missingKey.status).toBe(401);
+
+    const withKey = await appRequest(`/api/endpoints/${endpoint.id}/requests/${requestId}?key=${accessKey}`, {
+      method: "DELETE",
+    });
+    expect(withKey.status).toBe(200);
+
+    const deleteEndpointMissingKey = await appRequest(`/api/endpoints/${endpoint.id}`, { method: "DELETE" });
+    expect(deleteEndpointMissingKey.status).toBe(401);
+
+    const deleteEndpointWithKey = await appRequest(`/api/endpoints/${endpoint.id}?key=${accessKey}`, { method: "DELETE" });
+    expect(deleteEndpointWithKey.status).toBe(200);
+  });
 });
 
 describe("static asset routes", () => {

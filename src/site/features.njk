@@ -240,6 +240,10 @@ description: Explore WebhookSpy features including real-time request streaming, 
             <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
             CI/CD integration ready
           </li>
+          <li class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>
+            Powerful request filtering
+          </li>
         </ul>
       </div>
       <div class="mt-6">
@@ -248,6 +252,127 @@ description: Explore WebhookSpy features including real-time request streaming, 
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
           </svg>
           Explore API Documentation
+        </a>
+      </div>
+    </article>
+
+    <!-- Feature 8: Request Filtering API -->
+    <article class="glass bg-white/60 dark:bg-slate-900/60 rounded-3xl border border-slate-200/50 dark:border-slate-700/50 p-8 hover:shadow-xl transition-shadow lg:col-span-2">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-400/20 to-cyan-400/10 dark:from-cyan-500/30 dark:to-cyan-500/10 flex items-center justify-center mb-6">
+        <svg class="w-7 h-7 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-4">Powerful Request Filtering for Tests</h2>
+      <p class="text-slate-600 dark:text-slate-400 mb-4">
+        Query captured requests programmatically with flexible filters. Perfect for test assertions in CI/CD pipelines
+        when multiple webhooks hit the same endpoint. Find exactly the request you need by filtering on method, path,
+        headers, query parameters, or JSON body content.
+      </p>
+
+      <!-- Filter Parameters Table -->
+      <div class="mt-6 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-200 dark:border-slate-700">
+              <th class="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">Parameter</th>
+              <th class="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">Description</th>
+              <th class="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">Example</th>
+            </tr>
+          </thead>
+          <tbody class="text-slate-600 dark:text-slate-400">
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">method</code></td>
+              <td class="py-3 px-4">Filter by HTTP method</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?method=POST</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">path</code></td>
+              <td class="py-3 px-4">Filter by path (substring match)</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?path=/webhook</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">body</code></td>
+              <td class="py-3 px-4">Filter by body text (substring match)</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?body=order_id</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">body_key</code></td>
+              <td class="py-3 px-4">Filter by JSON body key existence</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?body_key=user_id</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">body_value</code></td>
+              <td class="py-3 px-4">Filter by JSON body key:value</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?body_value=status:completed</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">query_key</code></td>
+              <td class="py-3 px-4">Filter by query param existence</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?query_key=token</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">query_value</code></td>
+              <td class="py-3 px-4">Filter by query param key:value</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?query_value=id:12345</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">header_key</code></td>
+              <td class="py-3 px-4">Filter by header existence</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?header_key=x-signature</code></td>
+            </tr>
+            <tr class="border-b border-slate-100 dark:border-slate-800">
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">header_value</code></td>
+              <td class="py-3 px-4">Filter by header name:value</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?header_value=content-type:application/json</code></td>
+            </tr>
+            <tr>
+              <td class="py-3 px-4"><code class="text-cyan-600 dark:text-cyan-400">limit</code></td>
+              <td class="py-3 px-4">Limit number of results</td>
+              <td class="py-3 px-4"><code class="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">?limit=1</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Code Examples -->
+      <div class="mt-8 space-y-4">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">Example Usage</h3>
+        <div class="bg-slate-900 dark:bg-slate-950 rounded-xl p-4 overflow-x-auto">
+          <pre class="text-sm text-slate-300"><code><span class="text-slate-500"># Find POST requests with a specific JSON body value</span>
+curl "https://webhookspy.com/api/endpoints/{'{id}'}/requests?method=POST&body_value=event:order.created"
+
+<span class="text-slate-500"># Find requests with a specific query parameter</span>
+curl "https://webhookspy.com/api/endpoints/{'{id}'}/requests?query_value=webhook_id:abc123"
+
+<span class="text-slate-500"># Find requests that have a signature header</span>
+curl "https://webhookspy.com/api/endpoints/{'{id}'}/requests?header_key=x-webhook-signature"
+
+<span class="text-slate-500"># Combine filters to find the exact request you need</span>
+curl "https://webhookspy.com/api/endpoints/{'{id}'}/requests?method=POST&body_key=user_id&limit=1"</code></pre>
+        </div>
+      </div>
+
+      <!-- Test Example -->
+      <div class="mt-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+        <h4 class="font-semibold text-slate-900 dark:text-white mb-2">Use in Your Tests</h4>
+        <div class="bg-slate-900 dark:bg-slate-950 rounded-lg p-4 overflow-x-auto">
+          <pre class="text-sm text-slate-300"><code><span class="text-slate-500">// Example: Verify a webhook was received with correct data</span>
+<span class="text-purple-400">const</span> response = <span class="text-purple-400">await</span> fetch(
+  <span class="text-green-400">`https://webhookspy.com/api/endpoints/${'{endpointId}'}/requests?body_value=order_id:${'{orderId}'}&limit=1`</span>
+);
+<span class="text-purple-400">const</span> requests = <span class="text-purple-400">await</span> response.json();
+expect(requests).toHaveLength(<span class="text-amber-400">1</span>);
+expect(requests[<span class="text-amber-400">0</span>].method).toBe(<span class="text-green-400">'POST'</span>);</code></pre>
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <a href="/docs" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-700 text-white font-medium text-sm transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+          </svg>
+          Try It in API Docs
         </a>
       </div>
     </article>
