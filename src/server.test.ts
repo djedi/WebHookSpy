@@ -439,6 +439,78 @@ describe("generateAccessKey", () => {
   });
 });
 
+describe("Azure Event Grid validation handshake", () => {
+  let appRequest: (path: string, init?: RequestInit) => Promise<Response>;
+
+  beforeAll(() => {
+    ({ request: appRequest } = createTestClient());
+  });
+
+  beforeEach(() => {
+    __test.resetState();
+  });
+
+  it("responds with validationResponse for valid Event Grid validation event", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const body = JSON.stringify([
+      {
+        eventType: "Microsoft.EventGrid.SubscriptionValidationEvent",
+        data: { validationCode: "test-code-123" },
+      },
+    ]);
+    const response = await appRequest(`/${endpoint.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload.validationResponse).toBe("test-code-123");
+  });
+
+  it("still captures the validation request in the database", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const body = JSON.stringify([
+      {
+        eventType: "Microsoft.EventGrid.SubscriptionValidationEvent",
+        data: { validationCode: "abc-456" },
+      },
+    ]);
+    await appRequest(`/${endpoint.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    const metadataRes = await __test.handleEndpointMetadata(endpoint.id);
+    const metadata = await metadataRes.json();
+    expect(metadata.requests.length).toBe(1);
+    expect(metadata.requests[0].method).toBe("POST");
+    expect(metadata.requests[0].body).toContain("SubscriptionValidationEvent");
+  });
+
+  it("falls through to normal response for non-validation JSON", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const body = JSON.stringify({ eventType: "SomeOtherEvent", data: {} });
+    const response = await appRequest(`/${endpoint.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("Captured");
+  });
+
+  it("falls through to normal response for non-JSON body", async () => {
+    const { endpoint } = await __test.createEndpoint();
+    const response = await appRequest(`/${endpoint.id}`, {
+      method: "POST",
+      body: "plain text body",
+    });
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("Captured");
+  });
+});
+
 describe("internal handlers", () => {
   it("captures webhook requests and exposes metadata", async () => {
     const endpoint = await __test.ensureEndpoint();

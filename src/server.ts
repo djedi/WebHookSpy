@@ -419,6 +419,29 @@ async function handleWebhookCapture(
   };
   broadcast(endpoint.id, { type: "request", request: mapRequest(row) });
 
+  // Azure Event Grid validation handshake
+  if (bodyText) {
+    try {
+      const parsed = JSON.parse(bodyText);
+      const events = Array.isArray(parsed) ? parsed : [parsed];
+      const first = events[0];
+      if (
+        first?.eventType === "Microsoft.EventGrid.SubscriptionValidationEvent" &&
+        first?.data?.validationCode
+      ) {
+        return new Response(
+          JSON.stringify({ validationResponse: first.data.validationCode }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+    } catch {
+      // Not valid JSON — continue with normal response
+    }
+  }
+
   // Check if request is from a browser
   const acceptHeader = headers["accept"] || "";
   if (acceptHeader.includes("text/html")) {
