@@ -181,7 +181,9 @@ function maybeCleanupExpired(): void {
   const now = Date.now();
   if (now - lastCleanup < 60_000) return;
   lastCleanup = now;
-  storage.cleanupExpired().catch(() => {});
+  storage.cleanupExpired().catch((error) => {
+    console.error("Failed to clean up expired storage records", error);
+  });
 }
 
 function addSubscriber(endpointId: string, subscriber: Subscriber): void {
@@ -455,12 +457,12 @@ export const __test = {
   ensureEndpoint,
   createEndpoint: (options?: { id?: string; secure?: boolean }) =>
     createEndpoint(options?.id, options?.secure ?? false),
-  resetState: async () => {
-    await storage.clearAll();
+  resetState: () => {
     endpointCreateLimiter.clear();
     requestLimiter.clear();
     subscribers.clear();
     lastCleanup = 0;
+    return storage.clearAll();
   },
   handleEndpointMetadata,
   handleWebhookCapture: (

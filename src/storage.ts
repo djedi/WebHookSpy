@@ -52,16 +52,22 @@ export interface StorageAdapter {
 }
 
 export async function createStorageAdapter(): Promise<StorageAdapter> {
-  if (process.env.STORAGE_BACKEND === "redis") {
+  const storageBackend = process.env.STORAGE_BACKEND?.trim().toLowerCase();
+
+  if (storageBackend === "redis") {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) throw new Error("REDIS_URL env var is required when STORAGE_BACKEND=redis");
     const { RedisAdapter } = await import("./adapters/redis");
     return new RedisAdapter(redisUrl);
   }
 
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = path.join(__dirname, "..");
-  const dbPath = path.join(projectRoot, "data", "webhookspy.sqlite");
-  const { SqliteAdapter } = await import("./adapters/sqlite");
-  return new SqliteAdapter(dbPath);
+  if (!storageBackend || storageBackend === "sqlite") {
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const projectRoot = path.join(__dirname, "..");
+    const dbPath = path.join(projectRoot, "data", "webhookspy.sqlite");
+    const { SqliteAdapter } = await import("./adapters/sqlite");
+    return new SqliteAdapter(dbPath);
+  }
+
+  throw new Error(`Unsupported STORAGE_BACKEND: ${process.env.STORAGE_BACKEND}`);
 }

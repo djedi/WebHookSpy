@@ -55,8 +55,8 @@ describe("API routes via createServer", () => {
     ({ request: appRequest } = createTestClient());
   });
 
-  beforeEach(() => {
-    __test.resetState();
+  beforeEach(async () => {
+    await __test.resetState();
   });
 
   it("creates a public endpoint", async () => {
@@ -293,8 +293,8 @@ describe("static asset routes", () => {
     ({ request: appRequest } = createTestClient());
   });
 
-  beforeEach(() => {
-    __test.resetState();
+  beforeEach(async () => {
+    await __test.resetState();
   });
 
   it("serves static assets from the built site", async () => {
@@ -329,8 +329,8 @@ describe("webhook capture routes", () => {
     ({ request: appRequest } = createTestClient());
   });
 
-  beforeEach(() => {
-    __test.resetState();
+  beforeEach(async () => {
+    await __test.resetState();
   });
 
   it("returns plain text for non-browser webhook captures", async () => {
@@ -446,8 +446,8 @@ describe("Azure Event Grid validation handshake", () => {
     ({ request: appRequest } = createTestClient());
   });
 
-  beforeEach(() => {
-    __test.resetState();
+  beforeEach(async () => {
+    await __test.resetState();
   });
 
   it("responds with validationResponse for valid Event Grid validation event", async () => {

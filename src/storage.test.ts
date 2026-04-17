@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { SqliteAdapter } from "./adapters/sqlite";
 import { createStorageAdapter } from "./storage";
 
 describe("createStorageAdapter", () => {
@@ -18,18 +19,21 @@ describe("createStorageAdapter", () => {
     }
   });
 
-  it("returns a working SqliteAdapter by default", async () => {
-    const prevBackend = process.env.STORAGE_BACKEND;
-    delete process.env.STORAGE_BACKEND;
-
+  it("throws on unknown STORAGE_BACKEND value", async () => {
+    const prev = process.env.STORAGE_BACKEND;
+    process.env.STORAGE_BACKEND = "Reddis";
     try {
-      const adapter = await createStorageAdapter();
-      const ep = await adapter.createEndpoint("storagefactory01", null);
-      expect(ep.id).toBe("storagefactory01");
-      await adapter.clearAll();
+      await expect(createStorageAdapter()).rejects.toThrow("Unsupported STORAGE_BACKEND");
     } finally {
-      if (prevBackend !== undefined) process.env.STORAGE_BACKEND = prevBackend;
+      if (prev !== undefined) process.env.STORAGE_BACKEND = prev;
       else delete process.env.STORAGE_BACKEND;
     }
+  });
+
+  it("returns a working SqliteAdapter by default", async () => {
+    const adapter = new SqliteAdapter(":memory:");
+    const ep = await adapter.createEndpoint("storagefactory01", null);
+    expect(ep.id).toBe("storagefactory01");
+    await adapter.clearAll();
   });
 });

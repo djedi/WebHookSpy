@@ -114,12 +114,14 @@ export class RedisAdapter implements StorageAdapter {
   }
 
   async clearAll(): Promise<void> {
-    const [endpointKeys, rKeys, sKeys] = await Promise.all([
-      this.redis.keys("endpoint:*"),
-      this.redis.keys("requests:*"),
-      this.redis.keys("request_seq:*"),
-    ]);
-    const allKeys = [...endpointKeys, ...rKeys, ...sKeys];
-    if (allKeys.length > 0) await this.redis.del(...allKeys);
+    const patterns = ["endpoint:*", "requests:*", "request_seq:*"];
+    for (const pattern of patterns) {
+      let cursor = "0";
+      do {
+        const [nextCursor, keys] = await this.redis.scan(cursor, "MATCH", pattern, "COUNT", 100);
+        cursor = nextCursor;
+        if (keys.length > 0) await this.redis.del(...keys);
+      } while (cursor !== "0");
+    }
   }
 }
