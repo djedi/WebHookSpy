@@ -1,31 +1,21 @@
 import { Elysia, t } from "elysia";
 import { swagger } from "@elysiajs/swagger";
-import { Database } from "bun:sqlite";
 import { fileURLToPath } from "url";
 import path from "path";
-import fs from "fs";
+import { createStorageAdapter } from "./storage";
+import type { EndpointRow, RequestRecord } from "./storage";
+
+// Path setup
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.join(__dirname, "..");
+const siteDir = path.join(projectRoot, "_site");
+const endpointHtmlPath = path.join(siteDir, "endpoint", "index.html");
+const indexHtmlPath = path.join(siteDir, "index.html");
+
+// Storage
+const storage = await createStorageAdapter();
 
 // Types
-type EndpointRow = {
-  id: string;
-  created_at: string;
-  expires_at: string;
-  password_hash: string | null;
-};
-
-type RequestRecord = {
-  id: number;
-  endpoint_id: string;
-  method: string;
-  headers: string;
-  body: string | null;
-  truncated: number;
-  query: string | null;
-  created_at: string;
-  path: string;
-  ip: string | null;
-};
-
 type SerializableRequest = {
   id: number;
   method: string;
@@ -43,63 +33,12 @@ type Subscriber = {
   close: () => void;
 };
 
-// Path setup
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.join(__dirname, "..");
-const siteDir = path.join(projectRoot, "_site");
-const endpointHtmlPath = path.join(siteDir, "endpoint", "index.html");
-const indexHtmlPath = path.join(siteDir, "index.html");
-const dataDir = path.join(projectRoot, "data");
-const dbPath = path.join(dataDir, "webhookspy.sqlite");
-
-// Ensure data directory exists
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
-
-// Database setup
-const db = new Database(dbPath, { create: true });
-db.run("PRAGMA journal_mode = WAL;");
-db.run(
-  `CREATE TABLE IF NOT EXISTS endpoints (
-    id TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    password_hash TEXT
-  );`
-);
-// Migration: add password_hash column if it doesn't exist
-try {
-  db.run("ALTER TABLE endpoints ADD COLUMN password_hash TEXT");
-} catch {
-  // Column already exists
-}
-db.run(
-  `CREATE TABLE IF NOT EXISTS requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    endpoint_id TEXT NOT NULL,
-    method TEXT NOT NULL,
-    headers TEXT NOT NULL,
-    body TEXT,
-    truncated INTEGER DEFAULT 0,
-    query TEXT,
-    created_at TEXT NOT NULL,
-    path TEXT NOT NULL,
-    ip TEXT,
-    FOREIGN KEY(endpoint_id) REFERENCES endpoints(id) ON DELETE CASCADE
-  );`
-);
-db.run("CREATE INDEX IF NOT EXISTS idx_requests_endpoint ON requests(endpoint_id);");
-
 // Constants
 const APP_VERSION = process.env.APP_VERSION ?? "dev";
-const EXPIRATION_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 const MAX_BODY_BYTES = 512 * 1024;
-const MAX_REQUESTS_PER_ENDPOINT = 100;
-const encoder = new TextEncoder();
 
 // Rate limiting configuration
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_ENDPOINT_CREATES = 10;
 const RATE_LIMIT_MAX_REQUESTS = 100;
 
@@ -110,6 +49,8 @@ const requestLimiter = new Map<string, { count: number; resetTime: number }>();
 // SSE subscribers
 const subscribers = new Map<string, Set<Subscriber>>();
 let lastCleanup = 0;
+
+const encoder = new TextEncoder();
 
 // Security headers
 const securityHeaders = {
@@ -198,18 +139,10 @@ function generateEndpointId(): string {
   return crypto.randomUUID().replace(/-/g, "");
 }
 
-function getEndpoint(id: string): EndpointRow | undefined {
-  const stmt = db.prepare<EndpointRow, string>("SELECT * FROM endpoints WHERE id = ? LIMIT 1");
-  return stmt.get(id) as EndpointRow | undefined;
-}
-
 async function createEndpoint(
   id = generateEndpointId(),
   secure = false
 ): Promise<{ endpoint: EndpointRow; accessKey?: string }> {
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + EXPIRATION_MS);
-
   let passwordHash: string | null = null;
   let accessKey: string | undefined;
 
@@ -218,41 +151,16 @@ async function createEndpoint(
     passwordHash = await hashAccessKey(accessKey);
   }
 
-  db.run(
-    "INSERT INTO endpoints (id, created_at, expires_at, password_hash) VALUES (?, ?, ?, ?)",
-    id,
-    now.toISOString(),
-    expiresAt.toISOString(),
-    passwordHash
-  );
-
-  return { endpoint: getEndpoint(id)!, accessKey };
+  const endpoint = await storage.createEndpoint(id, passwordHash);
+  return { endpoint, accessKey };
 }
 
 async function ensureEndpoint(id?: string): Promise<EndpointRow> {
   const endpointId = id ?? generateEndpointId();
-  let endpoint = getEndpoint(endpointId);
-  if (!endpoint) {
-    const result = await createEndpoint(endpointId, false);
-    endpoint = result.endpoint;
-  }
+  const existing = await storage.getEndpoint(endpointId);
+  if (existing) return existing;
+  const { endpoint } = await createEndpoint(endpointId, false);
   return endpoint;
-}
-
-function refreshEndpointExpiration(id: string): void {
-  const newExpiresAt = new Date(Date.now() + EXPIRATION_MS).toISOString();
-  db.run("UPDATE endpoints SET expires_at = ? WHERE id = ?", newExpiresAt, id);
-}
-
-function pruneOldRequests(endpointId: string): void {
-  db.run(
-    `DELETE FROM requests WHERE endpoint_id = ? AND id NOT IN (
-      SELECT id FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT ?
-    )`,
-    endpointId,
-    endpointId,
-    MAX_REQUESTS_PER_ENDPOINT
-  );
 }
 
 function mapRequest(row: RequestRecord): SerializableRequest {
@@ -269,13 +177,13 @@ function mapRequest(row: RequestRecord): SerializableRequest {
   };
 }
 
-function cleanupExpired(): void {
+function maybeCleanupExpired(): void {
   const now = Date.now();
   if (now - lastCleanup < 60_000) return;
   lastCleanup = now;
-  const isoNow = new Date(now).toISOString();
-  db.run("DELETE FROM requests WHERE endpoint_id IN (SELECT id FROM endpoints WHERE expires_at <= ?)", isoNow);
-  db.run("DELETE FROM endpoints WHERE expires_at <= ?", isoNow);
+  storage.cleanupExpired().catch((error) => {
+    console.error("Failed to clean up expired storage records", error);
+  });
 }
 
 function addSubscriber(endpointId: string, subscriber: Subscriber): void {
@@ -343,14 +251,12 @@ async function serveStaticFile(relativePath: string): Promise<Response | null> {
 }
 
 async function serveStaticPage(pagePath: string): Promise<Response | null> {
-  // Try exact path first
   let filePath = path.join(siteDir, pagePath);
   let file = Bun.file(filePath);
   if (await file.exists()) {
     return new Response(file, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
 
-  // Try as directory with index.html
   const cleanPath = pagePath.replace(/\/$/, "");
   filePath = path.join(siteDir, cleanPath, "index.html");
   file = Bun.file(filePath);
@@ -386,37 +292,20 @@ async function handleWebhookCapture(
   const bodyText = limitedBuffer.byteLength ? decoder.decode(limitedBuffer) : null;
   const now = new Date().toISOString();
 
-  const insert = db.prepare(
-    `INSERT INTO requests (endpoint_id, method, headers, body, truncated, query, created_at, path, ip)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  );
-  const result = insert.run(
-    endpoint.id,
-    req.method,
-    JSON.stringify(headers),
-    bodyText,
-    truncated ? 1 : 0,
-    Object.keys(query).length ? JSON.stringify(query) : null,
-    now,
-    url.pathname + url.search,
-    clientIp
-  );
-
-  refreshEndpointExpiration(endpoint.id);
-  pruneOldRequests(endpoint.id);
-
-  const row: RequestRecord = {
-    id: Number(result.lastInsertRowid),
+  const row = await storage.saveRequest({
     endpoint_id: endpoint.id,
     method: req.method,
     headers: JSON.stringify(headers),
     body: bodyText,
-    truncated: truncated ? 1 : 0,
+    truncated,
     query: Object.keys(query).length ? JSON.stringify(query) : null,
     created_at: now,
     path: url.pathname + url.search,
     ip: clientIp,
-  };
+  });
+
+  await Promise.all([storage.refreshExpiration(endpoint.id), storage.pruneRequests(endpoint.id)]);
+
   broadcast(endpoint.id, { type: "request", request: mapRequest(row) });
 
   // Azure Event Grid validation handshake
@@ -500,21 +389,15 @@ async function handleWebhookCapture(
 }
 
 async function handleEndpointMetadata(endpointId: string): Promise<Response> {
-  const endpoint = getEndpoint(endpointId);
-  if (!endpoint) {
-    return new Response("Not found", { status: 404 });
-  }
-  const stmt = db.prepare<RequestRecord, string>(
-    `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`
-  );
-  const rows = stmt.all(endpointId) as RequestRecord[];
-  const payload = {
+  const endpoint = await storage.getEndpoint(endpointId);
+  if (!endpoint) return new Response("Not found", { status: 404 });
+  const rows = await storage.getRequests(endpointId, 100);
+  return Response.json({
     id: endpoint.id,
     createdAt: endpoint.created_at,
     expiresAt: endpoint.expires_at,
     requests: rows.map(mapRequest),
-  };
-  return Response.json(payload);
+  });
 }
 
 function handleSse(endpointId: string): Response {
@@ -572,17 +455,21 @@ function handleSse(endpointId: string): Response {
 // Export test helpers
 export const __test = {
   ensureEndpoint,
-  createEndpoint: (options?: { id?: string; secure?: boolean }) => createEndpoint(options?.id, options?.secure ?? false),
+  createEndpoint: (options?: { id?: string; secure?: boolean }) =>
+    createEndpoint(options?.id, options?.secure ?? false),
   resetState: () => {
-    db.run("DELETE FROM requests");
-    db.run("DELETE FROM endpoints");
     endpointCreateLimiter.clear();
     requestLimiter.clear();
     subscribers.clear();
     lastCleanup = 0;
+    return storage.clearAll();
   },
   handleEndpointMetadata,
-  handleWebhookCapture: (req: Request, endpointId: string, server: { requestIP: (req: Request) => { address: string } | null }) => {
+  handleWebhookCapture: (
+    req: Request,
+    endpointId: string,
+    server: { requestIP: (req: Request) => { address: string } | null }
+  ) => {
     const ipInfo = server.requestIP(req);
     return handleWebhookCapture(req, endpointId, ipInfo?.address ?? "unknown");
   },
@@ -607,7 +494,6 @@ export const __test = {
 // Elysia app factory
 export function createApp() {
   return new Elysia()
-    // Swagger documentation
     .use(
       swagger({
         documentation: {
@@ -646,39 +532,31 @@ export function createApp() {
         },
       })
     )
-    // Run cleanup on each request
     .onRequest(() => {
-      cleanupExpired();
+      maybeCleanupExpired();
     })
-    // Add security headers to all responses
     .onAfterHandle(({ response, set }) => {
-      // Skip security headers for SSE streams
       if (set.headers["Content-Type"] === "text/event-stream") return response;
       for (const [key, value] of Object.entries(securityHeaders)) {
         set.headers[key] = value;
       }
       return response;
     })
-    // Derive client IP
     .derive(({ request, server }) => ({
       clientIp: server?.requestIP(request)?.address ?? "unknown",
     }))
 
     // === API Routes ===
 
-    // Version endpoint
     .get("/api/version", () => ({ version: APP_VERSION }), {
       detail: {
         tags: ["system"],
         summary: "Get application version",
         description: "Returns the current application version.",
-        responses: {
-          200: { description: "Version information" },
-        },
+        responses: { 200: { description: "Version information" } },
       },
     })
 
-    // Create endpoint
     .post(
       "/api/endpoints",
       async ({ query, clientIp, set }) => {
@@ -714,7 +592,6 @@ export function createApp() {
       }
     )
 
-    // Get endpoint metadata
     .get(
       "/api/endpoints/:id",
       async ({ params, query, headers, set }) => {
@@ -722,7 +599,7 @@ export function createApp() {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -736,10 +613,7 @@ export function createApp() {
           }
         }
 
-        const stmt = db.prepare<RequestRecord, string>(
-          `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`
-        );
-        const rows = stmt.all(params.id) as RequestRecord[];
+        const rows = await storage.getRequests(params.id, 100);
         return {
           id: endpoint.id,
           createdAt: endpoint.created_at,
@@ -749,10 +623,7 @@ export function createApp() {
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
         }),
         query: t.Object({
           key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
@@ -771,7 +642,6 @@ export function createApp() {
       }
     )
 
-    // Get requests with filtering (for testing/integration)
     .get(
       "/api/endpoints/:id/requests",
       async ({ params, query, headers, set }) => {
@@ -779,7 +649,7 @@ export function createApp() {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -793,26 +663,18 @@ export function createApp() {
           }
         }
 
-        const stmt = db.prepare<RequestRecord, string>(
-          `SELECT * FROM requests WHERE endpoint_id = ? ORDER BY id DESC LIMIT 100`
-        );
-        const rows = stmt.all(params.id) as RequestRecord[];
+        const rows = await storage.getRequests(params.id, 100);
         let requests = rows.map(mapRequest);
 
-        // Apply filters
         if (query.method) {
           requests = requests.filter((r) => r.method.toUpperCase() === query.method!.toUpperCase());
         }
         if (query.path) {
           requests = requests.filter((r) => r.path.includes(query.path!));
         }
-
-        // Body text search (substring match anywhere in body)
         if (query.body) {
           requests = requests.filter((r) => r.body?.includes(query.body!) ?? false);
         }
-
-        // Body JSON key filter - check if a key exists in parsed JSON body
         if (query.body_key) {
           requests = requests.filter((r) => {
             if (!r.body) return false;
@@ -824,8 +686,6 @@ export function createApp() {
             }
           });
         }
-
-        // Body JSON value filter - check if a key has a specific value (format: "key:value")
         if (query.body_value) {
           const colonIdx = query.body_value.indexOf(":");
           if (colonIdx > 0) {
@@ -842,13 +702,9 @@ export function createApp() {
             });
           }
         }
-
-        // Query param key filter - check if query param exists
         if (query.query_key) {
           requests = requests.filter((r) => query.query_key! in r.query);
         }
-
-        // Query param value filter - check if query param has value (format: "key:value")
         if (query.query_value) {
           const colonIdx = query.query_value.indexOf(":");
           if (colonIdx > 0) {
@@ -857,17 +713,11 @@ export function createApp() {
             requests = requests.filter((r) => r.query[key] === value);
           }
         }
-
-        // Header key filter - check if header exists (case-insensitive)
         if (query.header_key) {
-          requests = requests.filter((r) => {
-            return Object.keys(r.headers).some(
-              (k) => k.toLowerCase() === query.header_key!.toLowerCase()
-            );
-          });
+          requests = requests.filter((r) =>
+            Object.keys(r.headers).some((k) => k.toLowerCase() === query.header_key!.toLowerCase())
+          );
         }
-
-        // Header value filter - check header has value (format: "name:value", case-insensitive name)
         if (query.header_value) {
           const colonIdx = query.header_value.indexOf(":");
           if (colonIdx > 0) {
@@ -877,27 +727,20 @@ export function createApp() {
               const headerKey = Object.keys(r.headers).find(
                 (k) => k.toLowerCase() === headerName.toLowerCase()
               );
-              if (!headerKey) return false;
-              return r.headers[headerKey].includes(headerValue);
+              return headerKey ? r.headers[headerKey].includes(headerValue) : false;
             });
           }
         }
-
         if (query.limit) {
           const limit = parseInt(query.limit, 10);
-          if (!isNaN(limit) && limit > 0) {
-            requests = requests.slice(0, limit);
-          }
+          if (!isNaN(limit) && limit > 0) requests = requests.slice(0, limit);
         }
 
         return requests;
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
         }),
         query: t.Object({
           key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
@@ -915,7 +758,7 @@ export function createApp() {
         detail: {
           tags: ["endpoints"],
           summary: "Get captured requests with filtering",
-          description: "Returns captured webhook requests as JSON array. Supports filtering by method, path, body text/key/value, and header key/value. Useful for testing and CI/CD integration.",
+          description: "Returns captured webhook requests as JSON array. Supports filtering by method, path, body text/key/value, and header key/value.",
           responses: {
             200: { description: "Array of captured requests" },
             400: { description: "Invalid endpoint ID format" },
@@ -926,15 +769,14 @@ export function createApp() {
       }
     )
 
-    // Check if endpoint is protected
     .get(
       "/api/endpoints/:id/protected",
-      ({ params, set }) => {
+      async ({ params, set }) => {
         if (!isValidEndpointId(params.id)) {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -943,15 +785,12 @@ export function createApp() {
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
         }),
         detail: {
           tags: ["endpoints"],
           summary: "Check if endpoint is protected",
-          description: "Returns whether the endpoint requires an access key. This endpoint does not require authentication.",
+          description: "Returns whether the endpoint requires an access key.",
           responses: {
             200: { description: "Protection status" },
             400: { description: "Invalid endpoint ID format" },
@@ -961,7 +800,6 @@ export function createApp() {
       }
     )
 
-    // SSE stream for endpoint
     .get(
       "/api/endpoints/:id/stream",
       async ({ params, query, headers, set }) => {
@@ -969,7 +807,7 @@ export function createApp() {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -987,10 +825,7 @@ export function createApp() {
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
         }),
         query: t.Object({
           key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
@@ -998,7 +833,7 @@ export function createApp() {
         detail: {
           tags: ["endpoints"],
           summary: "Subscribe to real-time webhook updates",
-          description: "Opens a Server-Sent Events (SSE) stream for real-time webhook notifications. Protected endpoints require an access key.",
+          description: "Opens a Server-Sent Events (SSE) stream for real-time webhook notifications.",
           responses: {
             200: { description: "SSE stream opened" },
             400: { description: "Invalid endpoint ID format" },
@@ -1009,7 +844,6 @@ export function createApp() {
       }
     )
 
-    // Delete a single request
     .delete(
       "/api/endpoints/:id/requests/:requestId",
       async ({ params, query, headers, set }) => {
@@ -1017,7 +851,7 @@ export function createApp() {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -1032,27 +866,20 @@ export function createApp() {
         }
 
         const requestId = Number(params.requestId);
-        const selectStmt = db.prepare("SELECT * FROM requests WHERE endpoint_id = ? AND id = ? LIMIT 1");
-        const requestRow = selectStmt.get(endpoint.id, requestId) as RequestRecord | undefined;
+        const requestRow = await storage.getRequest(endpoint.id, requestId);
         if (!requestRow) {
           set.status = 404;
           return { error: "Request not found" };
         }
 
-        db.run("DELETE FROM requests WHERE endpoint_id = ? AND id = ?", endpoint.id, requestId);
+        await storage.deleteRequest(endpoint.id, requestId);
         broadcast(endpoint.id, { type: "request_deleted", requestId });
         return { success: true };
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
-          requestId: t.String({
-            pattern: "^[0-9]+$",
-            description: "Numeric request identifier",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
+          requestId: t.String({ pattern: "^[0-9]+$", description: "Numeric request identifier" }),
         }),
         query: t.Object({
           key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
@@ -1060,7 +887,7 @@ export function createApp() {
         detail: {
           tags: ["endpoints"],
           summary: "Delete a single captured request",
-          description: "Removes a captured webhook request. Protected endpoints require an access key.",
+          description: "Removes a captured webhook request.",
           responses: {
             200: { description: "Request deleted" },
             400: { description: "Invalid endpoint ID" },
@@ -1071,7 +898,6 @@ export function createApp() {
       }
     )
 
-    // Delete all requests for an endpoint
     .delete(
       "/api/endpoints/:id/requests",
       async ({ params, query, headers, set }) => {
@@ -1079,7 +905,7 @@ export function createApp() {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -1093,19 +919,13 @@ export function createApp() {
           }
         }
 
-        const result = db.prepare("DELETE FROM requests WHERE endpoint_id = ?").run(endpoint.id);
-        const deleted = Number(result.changes ?? 0);
-        if (deleted > 0) {
-          broadcast(endpoint.id, { type: "requests_cleared" });
-        }
+        const deleted = await storage.deleteRequests(endpoint.id);
+        if (deleted > 0) broadcast(endpoint.id, { type: "requests_cleared" });
         return { success: true, deleted };
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
         }),
         query: t.Object({
           key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
@@ -1113,7 +933,7 @@ export function createApp() {
         detail: {
           tags: ["endpoints"],
           summary: "Clear all captured requests",
-          description: "Deletes all stored webhook requests for the endpoint. Protected endpoints require an access key.",
+          description: "Deletes all stored webhook requests for the endpoint.",
           responses: {
             200: { description: "Requests cleared" },
             400: { description: "Invalid endpoint ID" },
@@ -1124,7 +944,6 @@ export function createApp() {
       }
     )
 
-    // Delete an endpoint and all of its data
     .delete(
       "/api/endpoints/:id",
       async ({ params, query, headers, set }) => {
@@ -1132,7 +951,7 @@ export function createApp() {
           set.status = 400;
           return { error: "Invalid endpoint ID" };
         }
-        const endpoint = getEndpoint(params.id);
+        const endpoint = await storage.getEndpoint(params.id);
         if (!endpoint) {
           set.status = 404;
           return { error: "Endpoint not found" };
@@ -1146,17 +965,14 @@ export function createApp() {
           }
         }
 
-        db.run("DELETE FROM endpoints WHERE id = ?", endpoint.id);
+        await storage.deleteEndpoint(endpoint.id);
         broadcast(endpoint.id, { type: "endpoint_deleted" });
         closeSubscribers(endpoint.id);
         return { success: true };
       },
       {
         params: t.Object({
-          id: t.String({
-            pattern: "^[a-f0-9]{32}$",
-            description: "32-character hex endpoint ID",
-          }),
+          id: t.String({ pattern: "^[a-f0-9]{32}$", description: "32-character hex endpoint ID" }),
         }),
         query: t.Object({
           key: t.Optional(t.String({ description: "Access key for protected endpoints" })),
@@ -1164,7 +980,7 @@ export function createApp() {
         detail: {
           tags: ["endpoints"],
           summary: "Delete an endpoint",
-          description: "Deletes the endpoint and all associated requests immediately. Protected endpoints require an access key.",
+          description: "Deletes the endpoint and all associated requests immediately.",
           responses: {
             200: { description: "Endpoint deleted" },
             400: { description: "Invalid endpoint ID" },
@@ -1177,7 +993,6 @@ export function createApp() {
 
     // === Static Routes ===
 
-    // Home page
     .get("/", async ({ set }) => {
       const file = Bun.file(indexHtmlPath);
       if (!(await file.exists())) {
@@ -1188,7 +1003,6 @@ export function createApp() {
       return file;
     })
 
-    // Inspector page
     .get(
       "/inspect/:id",
       async ({ params, set }) => {
@@ -1206,13 +1020,10 @@ export function createApp() {
         return file;
       },
       {
-        params: t.Object({
-          id: t.String({ pattern: "^[a-f0-9]{32}$" }),
-        }),
+        params: t.Object({ id: t.String({ pattern: "^[a-f0-9]{32}$" }) }),
       }
     )
 
-    // Static assets
     .get("/assets/*", async ({ params, set }) => {
       const relativePath = `assets/${(params as any)["*"]}`;
       const response = await serveStaticFile(relativePath);
@@ -1250,12 +1061,10 @@ export function createApp() {
       return response;
     })
 
-    // Webhook capture - matches 32-char hex IDs with optional path
     .all(
       "/:id",
       async ({ params, request, clientIp, set }) => {
         if (!isValidEndpointId(params.id)) {
-          // Try static page fallback
           const url = new URL(request.url);
           const staticPage = await serveStaticPage(url.pathname);
           if (staticPage) {
@@ -1276,13 +1085,11 @@ export function createApp() {
         return handleWebhookCapture(request, params.id, clientIp);
       },
       {
-        params: t.Object({
-          id: t.String(),
-        }),
+        params: t.Object({ id: t.String() }),
         detail: {
           tags: ["webhooks"],
           summary: "Capture a webhook request",
-          description: "Captures any HTTP request sent to this endpoint. Supports all HTTP methods. Returns HTML if Accept header includes text/html, otherwise returns plain text.",
+          description: "Captures any HTTP request sent to this endpoint.",
           responses: {
             200: { description: "Request captured successfully" },
             429: { description: "Rate limit exceeded" },
@@ -1291,7 +1098,6 @@ export function createApp() {
       }
     )
 
-    // Webhook capture with subpath
     .all(
       "/:id/*",
       async ({ params, request, clientIp, set }) => {
@@ -1310,13 +1116,8 @@ export function createApp() {
         return handleWebhookCapture(request, params.id, clientIp);
       },
       {
-        params: t.Object({
-          id: t.String(),
-          "*": t.String(),
-        }),
-        detail: {
-          hide: true, // Hide from OpenAPI docs to avoid exactMirror warning
-        },
+        params: t.Object({ id: t.String(), "*": t.String() }),
+        detail: { hide: true },
       }
     );
 }
