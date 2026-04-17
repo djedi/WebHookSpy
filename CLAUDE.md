@@ -57,7 +57,12 @@ An Elysia server (running on Bun) that handles:
 - **OpenAPI docs**: Auto-generated Swagger/Scalar documentation at `/docs`
 - **Static serving**: Serves 11ty-built files from `_site/`
 
-SQLite database (`data/webhookspy.sqlite`) stores endpoints and requests. Key constraints:
+Storage is handled by a `StorageAdapter` interface (`src/storage.ts`) with two backends:
+
+- **SQLite** (default) — `src/adapters/sqlite.ts`, database at `data/webhookspy.sqlite`
+- **Redis** — `src/adapters/redis.ts`, selected via `STORAGE_BACKEND=redis` + `REDIS_URL`
+
+Key constraints (both backends):
 
 - Endpoints expire after 7 days of inactivity (auto-recreated on next request)
 - Max 100 requests per endpoint (oldest pruned automatically)
@@ -139,6 +144,8 @@ All responses include:
 
 - Endpoint IDs are 32-character lowercase hex strings (UUID without dashes)
 - SSE subscribers stored in memory Map; broadcast on new request capture
-- Expired endpoint cleanup runs on each request (throttled to once per minute)
+- Expired endpoint cleanup runs on each request (throttled to once per minute); Redis handles this via native TTL, SQLite via periodic DELETE
 - Request IP captured via `server.requestIP(req)`
-- Rate limit maps cleaned up every 60 seconds
+- Rate limit maps are in-memory (not in the storage adapter) and cleaned up every 60 seconds
+- `StorageAdapter` is initialized via top-level `await createStorageAdapter()` in `server.ts`; backend is selected by `STORAGE_BACKEND` env var
+- Redis data model: `endpoint:{id}` hash, `requests:{id}` sorted set (score = auto-increment ID), `request_seq:{id}` INCR counter; TTL set on all three keys via `EXPIREAT`

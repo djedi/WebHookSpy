@@ -4,7 +4,7 @@
   <img src="webhookspy-logo.png" alt="WebhookSpy logo" width="320" />
 </p>
 
-WebhookSpy is a lightweight webhook inspector powered by Bun, Elysia, SQLite, Alpine.js, Tailwind CSS, and 11ty. It gives you permanent HTTP endpoints that you can use forever for testing, stream payloads over Server-Sent Events (SSE), and present the captures in a modern, polished UI.
+WebhookSpy is a lightweight webhook inspector powered by Bun, Elysia, Alpine.js, Tailwind CSS, and 11ty. It stores data in SQLite by default and supports Redis for cloud deployments. It gives you permanent HTTP endpoints that you can use forever for testing, stream payloads over Server-Sent Events (SSE), and present the captures in a modern, polished UI.
 
 ## Features
 
@@ -25,18 +25,19 @@ WebhookSpy is a lightweight webhook inspector powered by Bun, Elysia, SQLite, Al
 │ HTTP client│ ──────────────────────▶ │ Elysia server (server.ts) │
 └────────────┘                         │  • REST + webhook catcher │
                                        │  • OpenAPI docs at /docs  │
-                                       │  • SQLite persistence     │
-                                       └────────────┬──────────────┘
-                                                    │ serves
-                                                    ▼
-                                       ┌───────────────────────────┐
-                                       │ 11ty site (src/site)      │
-                                       │  • Tailwind + Alpine UI   │
-                                       │  • Live inspector (#SSE)  │
-                                       └───────────────────────────┘
+                                       │  • Pluggable storage      │
+                                       └──────┬──────────┬─────────┘
+                                              │ serves   │ reads/writes
+                                              ▼          ▼
+                               ┌──────────────┐  ┌──────────────────┐
+                               │ 11ty site    │  │ SQLite (default) │
+                               │ Tailwind +   │  │   or Redis       │
+                               │ Alpine + SSE │  │ (STORAGE_BACKEND │
+                               └──────────────┘  │  =redis)         │
+                                                 └──────────────────┘
 ```
 
-The Elysia server (running on Bun) exposes `/api` endpoints with auto-generated OpenAPI documentation at `/docs`, captures any HTTP request to `/{endpointId}`, and uses SQLite for storage and retention rules. The frontend is generated with 11ty/Nunjucks templates and Alpine.js for interactivity, compiled into `_site/` and served by the same process.
+The Elysia server (running on Bun) exposes `/api` endpoints with auto-generated OpenAPI documentation at `/docs`, captures any HTTP request to `/{endpointId}`, and delegates persistence to a `StorageAdapter` — SQLite by default, Redis for cloud/multi-instance deployments. The frontend is generated with 11ty/Nunjucks templates and Alpine.js for interactivity, compiled into `_site/` and served by the same process.
 
 ## Prerequisites
 
@@ -270,9 +271,21 @@ volumes:
 
 ### Environment Variables
 
-| Variable | Default | Description                |
-| -------- | ------- | -------------------------- |
-| `PORT`   | `8147`  | Port the server listens on |
+| Variable           | Default  | Description                                                  |
+| ------------------ | -------- | ------------------------------------------------------------ |
+| `PORT`             | `8147`   | Port the server listens on                                   |
+| `STORAGE_BACKEND`  | _(none)_ | Set to `redis` to use Redis instead of SQLite                |
+| `REDIS_URL`        | _(none)_ | Redis connection URL — required when `STORAGE_BACKEND=redis` |
+
+#### Redis connection URL format
+
+| Environment         | URL format                                              |
+| ------------------- | ------------------------------------------------------- |
+| Local Docker        | `redis://redis:6379`                                    |
+| Azure Cache (TLS)   | `rediss://:<password>@<name>.redis.cache.windows.net:6380` |
+| Self-hosted (no TLS)| `redis://<host>:6379`                                   |
+
+The `rediss://` scheme (double-s) enables TLS, which Azure Cache for Redis requires by default.
 
 ### Build Your Own Image
 
@@ -333,21 +346,38 @@ All responses include security headers:
 
 ## Data & storage
 
-- Data files live under `data/webhookspy.sqlite`. The server creates the directory and database automatically.
-- **Activity-based expiration**: Endpoints stay alive as long as they receive requests. The expiration timer resets to 7 days on each new request.
-- **Request limit**: Each endpoint keeps up to 100 requests. Older requests are automatically deleted when the limit is exceeded.
-- **Auto-recreation**: If an endpoint expires and you hit the same URL again, it's automatically recreated—so your URLs effectively work forever.
-- To reset the local DB, stop the server and delete the `data` directory.
+WebhookSpy supports two storage backends selected via the `STORAGE_BACKEND` environment variable.
+
+### SQLite (default)
+
+- Data lives in `data/webhookspy.sqlite`. The directory and database are created automatically.
+- To reset local data, stop the server and delete the `data/` directory.
+
+### Redis (`STORAGE_BACKEND=redis`)
+
+- Requires `REDIS_URL` pointing to a running Redis instance.
+- Endpoint keys are stored as Redis hashes with native TTL — data survives container restarts automatically.
+- For local development with Redis, start the dev container with the redis profile: `./dev --profile redis` (also uncomment the env vars in `docker-compose.dev.yml`).
+
+### Shared behaviour (both backends)
+
+- **Activity-based expiration**: The expiration timer resets to 7 days on each new webhook request.
+- **Request limit**: Each endpoint keeps up to 100 requests. Older ones are automatically pruned.
+- **Auto-recreation**: If an endpoint expires and you hit the same URL again, it is automatically recreated — so URLs effectively work forever.
 
 ## Project structure
 
 ```
 src/
-  server.ts        # Bun server (API endpoints, SSE, static file serving)
-  site/            # 11ty templates, layout, assets, Alpine components
-    assets/        # static assets copied to /assets in the build output
-_site/             # generated static files (build artifact)
-data/              # SQLite database (created on demand)
+  server.ts          # Elysia server (API endpoints, SSE, static file serving)
+  storage.ts         # StorageAdapter interface, types, and backend factory
+  adapters/
+    sqlite.ts        # SQLite backend (default)
+    redis.ts         # Redis backend (STORAGE_BACKEND=redis)
+  site/              # 11ty templates, layout, assets, Alpine components
+    assets/          # static assets copied to /assets in the build output
+_site/               # generated static files (build artifact)
+data/                # SQLite database directory (created on demand)
 ```
 
 ## Useful scripts

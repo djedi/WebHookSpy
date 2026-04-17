@@ -12,4 +12,21 @@ services:
       - ./_site:/app/_site
     environment:
       - PORT=8147
+      # To use Redis instead of SQLite, uncomment these and start the redis profile:
+      #   ./dev --profile redis
+      # - STORAGE_BACKEND=redis
+      # - REDIS_URL=redis://redis:6379
     restart: unless-stopped
+
+  # Redis backend (optional) — start with: ./dev --profile redis
+  redis:
+    image: redis:7-alpine
+    profiles: [redis]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  redis-data:
