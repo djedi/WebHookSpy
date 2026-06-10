@@ -32,6 +32,8 @@ RUN bun install --frozen-lockfile --production
 # Copy built assets and server
 COPY --from=builder /app/_site ./_site
 COPY --from=builder /app/src/server.ts ./src/server.ts
+COPY --from=builder /app/src/storage.ts ./src/storage.ts
+COPY --from=builder /app/src/adapters ./src/adapters
 COPY tsconfig.json ./
 
 # Create data directory
